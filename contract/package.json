@@ -1,0 +1,27 @@
+{
+  "name": "simple-game",
+  "type": "module",
+  "scripts": {
+    "start:docker": "docker-compose up -d",
+    "docker:logs": "docker-compose logs --tail 200 -f",
+    "docker:bash": "docker-compose exec agd bash",
+    "docker:make": "docker-compose exec agd make -C /workspace/contract",
+    "make:help": "make list",
+    "build:proposal": "agoric run ./scripts/build-game1-start.js"
+  },
+  "dependencies": {
+    "@agoric/ertp": "^0.16.2",
+    "@endo/far": "^0.2.21",
+    "@endo/marshal": "^0.8.9",
+    "@endo/patterns": "^0.2.5"
+  },
+  "devDependencies": {
+    "@agoric/deploy-script-support": "^0.10.3",
+    "agoric": "^0.21.2-u11wf.0",
+    "ava": "^5.3.0"
+  },
+  "resolutions":{
+    "@babel/code-frame": "7.18.6",
+    "@babel/highlight": "7.22.5"
+  }
+}
