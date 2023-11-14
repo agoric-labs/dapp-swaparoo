@@ -149,11 +149,11 @@ test('basic swap', async t => {
 
     const actualCow = await aliceSeat.getPayout('Cow');
 
-    const actualCowAmount = cowIssuerKit.issuer.getAmountOf(actualCow);
+    const actualCowAmount = await cowIssuerKit.issuer.getAmountOf(actualCow);
     t.log('cow payout', actualCowAmount);
     t.deepEqual(actualCowAmount, cowAmount);
     const actualBeans = await jackSeat.getPayout('MagicBeans');
-    const actualBeansAmount = beanIssuerKit.issuer.getAmountOf(actualBeans);
+    const actualBeansAmount = await beanIssuerKit.issuer.getAmountOf(actualBeans);
     t.log('bean payout', actualBeansAmount);
     t.deepEqual(actualBeansAmount, fiveBeans);
 });

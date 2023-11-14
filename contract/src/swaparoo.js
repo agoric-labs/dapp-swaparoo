@@ -63,16 +63,7 @@ export const start = async zcf => {
 
     /** @type {OfferHandler} */
     const secondSeatOfferHandler = secondSeat => {
-      try {
-        const swapResult = swapWithFee(zcf, firstSeat, secondSeat, feeSeat, feeAmount);
-        firstSeat.exit('completed swap');
-        secondSeat.exit('completed swap');
-        return swapResult;
-      } catch (e) {
-        firstSeat.fail('aborted');
-        secondSeat.fail('aborted');
-        throw (e);
-      }
+      return swapWithFee(zcf, firstSeat, secondSeat, feeSeat, feeAmount);
     };
 
     const makeSecondProposalShape = want => {
