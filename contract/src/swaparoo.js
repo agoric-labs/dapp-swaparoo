@@ -24,52 +24,53 @@ export const start = async zcf => {
   // set up fee handling
   const { joinPrice } = zcf.getTerms();
   const stableIssuer = await E(zcf.getZoeService()).getFeeIssuer();
-  zcf.saveIssuer(stableIssuer, 'Fee');
+  const { brand: feeBrand } = await zcf.saveIssuer(stableIssuer, 'Fee');
   const { zcfSeat: feeSeat } = zcf.makeEmptySeatKit();
+  const feeShape = makeNatAmountShape(feeBrand, 1_000_000n);
 
   /** @type {OfferHandler} */
-  const makeMatchingInvitation = (firstSeat, id) => {
+  const makeSecondInvitation = (firstSeat, id) => {
     const { want, give } = firstSeat.getProposal();
 
     /** @type {OfferHandler} */
-    const matchingSeatOfferHandler = matchingSeat => {
+    const secondSeatOfferHandler = secondSeat => {
       try {
-        const swapResult = swap(zcf, firstSeat, matchingSeat);
+        const swapResult = swap(zcf, firstSeat, secondSeat);
         firstSeat.exit('completed swap');
-        matchingSeat.exit('completed swap');
+        secondSeat.exit('completed swap');
         return swapResult;
       } catch (e) {
         firstSeat.fail('aborted');
-        matchingSeat.fail('aborted');
+        secondSeat.fail('aborted');
         throw (e);
       };
     };
 
-    const matchingSeatInvitation = zcf.makeInvitation(
-      matchingSeatOfferHandler,
+    const makeSecondProposalShape = (give, want) => {
+      return M.any(); // XXX do better
+    };
+
+    const secondSeatInvitation = zcf.makeInvitation(
+      secondSeatOfferHandler,
       'matchOffer',
       { give, want }, // "give" and "want" are from the proposer's perspective
-      counterpartyProposalShape,
+      makeSecondProposalShape(give, want),
     );
 
-    return matchingSeatInvitation;
+    return secondSeatInvitation;
   };
 
   // returns an offer to create a specific swap
-  const makeSwapInvitation = (issuers) => {
+  const makeFirstInvitation = (issuers) => {
     issuers.forEach(i => zcf.addIssuer(i)); // TODO cleanup
-
-    return zcf.makeInvitation(makeMatchingInvitation, 'create a swap'); // XXX need the shape?
+    const proposalShape = M.splitRecord({
+      give: M.splitRecord({ fee: feeShape }),
+    });
+    return zcf.makeInvitation(makeSecondInvitation, 'create a swap', proposalShape);
   };
 
-  const joinShape = harden({
-    give: { Price: AmountShape },
-    want: { Places: AmountShape },
-    exit: M.any(),
-  });
-
   const publicFacet = Far('API', {
-    makeSwapInvitation,
+    makeFirstInvitation,
   });
   return harden({ publicFacet });
 };
