@@ -19,13 +19,14 @@ const { Fail, quote: q } = assert;
 
 const trace = makeTracer('Swaparoo', true);
 
-/** @type {Swap} */
+const makeNatAmountShape = (brand, min) => harden({ brand, value: min ? M.gte(min) : M.nat() });
+
 export const swapWithFee = (zcf, firstSeat, secondSeat, feeSeat, feeAmount) => {
   try {
     const { Fee: _, ...firstGive } = firstSeat.getProposal().give;
     atomicRearrange(zcf,
       harden([
-        [firstSeat, secondSeat, firstGive]
+        [firstSeat, secondSeat, firstGive],
         [secondSeat, firstSeat, secondSeat.getProposal().give],
         [firstSeat, feeSeat, { Fee: feeAmount }],
       ]),
@@ -38,17 +39,21 @@ export const swapWithFee = (zcf, firstSeat, secondSeat, feeSeat, feeAmount) => {
 
   firstSeat.exit();
   secondSeat.exit();
-  return defaultAcceptanceMsg;
+  return 'success';
 };
 
+let issuerNumber = 1;
+
 /**
- * @param {ZCF<>} zcf
+ * @param {ZCF<{feeAmount: Amount<'nat'>}>} zcf
  */
 export const start = async zcf => {
   // set up fee handling
   const { feeAmount } = zcf.getTerms();
+  /** @type { ERef<Issuer<"nat">> } */
   const stableIssuer = await E(zcf.getZoeService()).getFeeIssuer();
-  const { brand: feeBrand } = await zcf.saveIssuer(stableIssuer, 'Fee');
+  const feeBrand = await stableIssuer.getBrand();
+  //const { brand: feeBrand } = await zcf.saveIssuer(stableIssuer, 'Fee');
   const { zcfSeat: feeSeat } = zcf.makeEmptySeatKit();
   const feeShape = makeNatAmountShape(feeBrand, 1_000_000n);
 
@@ -71,8 +76,9 @@ export const start = async zcf => {
     };
 
     const makeSecondProposalShape = want => {
+      const givePattern = Object.fromEntries(Object.keys(want).map(k => [k, M.any()]));
       return M.splitRecord({
-        give: M.splitRecord(Object.fromEntries(new Map(Object.keys(want).map(k => [k])))),
+        give: M.splitRecord(givePattern),
       });
     };
 
@@ -87,12 +93,12 @@ export const start = async zcf => {
   };
 
   // returns an offer to create a specific swap
-  const makeFirstInvitation = (issuers) => {
-    issuers.forEach(i => zcf.addIssuer(i)); // TODO cleanup
+  const makeFirstInvitation = issuers => {
+    issuers.forEach(i => zcf.saveIssuer(i, `Issuer${issuerNumber++}`)); // TODO cleanup
     const proposalShape = M.splitRecord({
       give: M.splitRecord({ Fee: feeShape }),
     });
-    return zcf.makeInvitation(makeSecondInvitation, 'create a swap', proposalShape);
+    return zcf.makeInvitation(makeSecondInvitation, 'create a swap', undefined, proposalShape);
   };
 
   const publicFacet = Far('API', {

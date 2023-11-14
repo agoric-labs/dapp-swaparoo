@@ -100,7 +100,7 @@ test('basic swap', async t => {
                 Cow: cowAmount,
             },
         };
-        const toJoin = E(publicFacet).makeFirstInvitation();
+        const toJoin = await E(publicFacet).makeFirstInvitation(Object.values([cowIssuerKit.issuer, beanIssuerKit.issuer]));
 
         const beanPayment = beanIssuerKit.mint.mintPayment(fiveBeans);
         const feePurse = faucet(1_000_000n);
