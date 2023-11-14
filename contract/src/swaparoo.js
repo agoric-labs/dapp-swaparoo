@@ -9,7 +9,8 @@ import { E, Far } from '@endo/far';
 import '@agoric/zoe/exported.js';
 import { atomicRearrange } from '@agoric/zoe/contractSupport/zoeHelpers.js';
 
-import { makeScalarBigMapStore } from '@agoric/vat-data';
+import '@agoric/zoe/exported.js';
+import '@agoric/zoe/src/contracts/exported.js';
 
 import { makeTracer } from './debug.js';
 
@@ -39,13 +40,12 @@ export const swapWithFee = (zcf, firstSeat, secondSeat, feeSeat, feeAmount) => {
   return defaultAcceptanceMsg;
 };
 
-
 /**
- * @param {ZCF<{joinPrice: Amount}>} zcf
+ * @param {ZCF<>} zcf
  */
 export const start = async zcf => {
   // set up fee handling
-  const { joinPrice } = zcf.getTerms();
+  const { feeAmount } = zcf.getTerms();
   const stableIssuer = await E(zcf.getZoeService()).getFeeIssuer();
   const { brand: feeBrand } = await zcf.saveIssuer(stableIssuer, 'Fee');
   const { zcfSeat: feeSeat } = zcf.makeEmptySeatKit();
@@ -58,7 +58,7 @@ export const start = async zcf => {
     /** @type {OfferHandler} */
     const secondSeatOfferHandler = secondSeat => {
       try {
-        const swapResult = swap(zcf, firstSeat, secondSeat);
+        const swapResult = swapWithFee(zcf, firstSeat, secondSeat, feeSeat, feeAmount);
         firstSeat.exit('completed swap');
         secondSeat.exit('completed swap');
         return swapResult;
@@ -66,7 +66,7 @@ export const start = async zcf => {
         firstSeat.fail('aborted');
         secondSeat.fail('aborted');
         throw (e);
-      };
+      }
     };
 
     const makeSecondProposalShape = want => {
