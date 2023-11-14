@@ -2,23 +2,23 @@
  * @file Proposal Builder: Start Game with non-vbank Place NFT asset
  *
  * Usage:
- *   agoric run build-game1-start.js
+ *   agoric run build-contract-deployer.js
  */
 
 import { makeHelpers } from '@agoric/deploy-script-support';
-import { getManifestForGame1 } from '../src/start-game1-proposal.js';
+import { getManifestForContract } from '../src/start-contract-proposal.js';
 
 /** @type {import('@agoric/deploy-script-support/src/externalTypes.js').ProposalBuilder} */
-export const game1ProposalBuilder = async ({ publishRef, install }) => {
+export const contractProposalBuilder = async ({ publishRef, install }) => {
   return harden({
-    sourceSpec: '../src/start-game1-proposal.js',
+    sourceSpec: '../src/start-contract-proposal.js',
     getManifestCall: [
-      getManifestForGame1.name,
+      getManifestForContract.name,
       {
         game1Ref: publishRef(
           install(
-            '../src/gameAssetContract.js',
-            '../bundles/bundle-game1.js',
+            '../src/swaparoo.js',
+            '../bundles/bundle-contract.js',
             { persist: true },
           ),
         ),
@@ -30,5 +30,5 @@ export const game1ProposalBuilder = async ({ publishRef, install }) => {
 /** @type {DeployScriptFunction} */
 export default async (homeP, endowments) => {
   const { writeCoreProposal } = await makeHelpers(homeP, endowments);
-  await writeCoreProposal('start-game1', game1ProposalBuilder);
+  await writeCoreProposal('swaparoo', contractProposalBuilder);
 };

@@ -8,12 +8,12 @@
     "docker:bash": "docker-compose exec agd bash",
     "docker:make": "docker-compose exec agd make -C /workspace/contract",
     "make:help": "make list",
-    "build:proposal": "agoric run ./scripts/build-game1-start.js",
-    "test": "ava --verbose"
+    "test": "ava --verbose",
+    "build:proposal": "agoric run ./scripts/build-contract-deployer.js"
   },
   "dependencies": {
-    "@agoric/ertp": "^0.16.2",
     "@agoric/zoe": "^0.26.2",
+    "@agoric/ertp": "^0.16.2",
     "@endo/far": "^0.2.21",
     "@endo/marshal": "^0.8.9",
     "@endo/patterns": "^0.2.5"

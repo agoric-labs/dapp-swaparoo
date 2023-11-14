@@ -18,6 +18,8 @@ import { makeCopyBag } from '@agoric/store';
 
 type Wallet = Awaited<ReturnType<typeof makeAgoricWalletConnection>>;
 
+export const APP_NAME = 'swaparoo';
+
 const watcher = makeAgoricChainStorageWatcher(
   'http://localhost:26657',
   'agoriclocal'
@@ -55,7 +57,7 @@ const setup = async () => {
     instances => {
       console.log('got instances', instances);
       useAppStore.setState({
-        gameInstance: instances.find(([name]) => name === 'game1')!.at(1),
+        gameInstance: instances.find(([name]) => name === APP_NAME)!.at(1),
       });
     }
   );

@@ -3,7 +3,7 @@ import { E } from '@endo/far';
 import { makeMarshal } from '@endo/marshal';
 import { AmountMath } from '@agoric/ertp/src/amountMath.js';
 
-console.warn('start-game1-proposal.js module evaluating');
+console.warn('start-contract-proposal.js module evaluating');
 
 const { Fail } = assert;
 
@@ -36,13 +36,15 @@ const publishBrandInfo = async (chainStorage, board, brand) => {
   await E(node).setValue(JSON.stringify(aux));
 };
 
+const contractName = 'swaparoo';
+
 /**
  * Core eval script to start contract
  *
  * @param {BootstrapPowers} permittedPowers
  */
-export const startGameContract = async permittedPowers => {
-  console.error('startGameContract()...');
+export const startContract = async permittedPowers => {
+  console.error('startContract()...');
   const {
     consume: { agoricNames, board, chainStorage, startUpgradable, zoe },
     brand: {
@@ -69,9 +71,10 @@ export const startGameContract = async permittedPowers => {
   // agoricNames gets updated each time; the promise space only once XXXXXXX
   const installation = await E(agoricNames).lookup('installation', 'game1');
 
+  const contractName = 'swaparoo';
   const { instance } = await E(startUpgradable)({
     installation,
-    label: 'game1',
+    label: contractName,
     terms,
   });
   console.log('CoreEval script: started game contract', instance);
@@ -91,12 +94,12 @@ export const startGameContract = async permittedPowers => {
   producePlaceIssuer.resolve(issuer);
 
   await publishBrandInfo(chainStorage, board, brand);
-  console.log('game1 (re)installed');
+  console.log(`${contractName} (re)installed`);
 };
 
 /** @type { import("@agoric/vats/src/core/lib-boot").BootstrapManifest } */
 const gameManifest = {
-  [startGameContract.name]: {
+  [startContract.name]: {
     consume: {
       agoricNames: true,
       board: true, // to publish boardAux info for game NFT
@@ -104,15 +107,15 @@ const gameManifest = {
       startUpgradable: true, // to start contract and save adminFacet
       zoe: true, // to get contract terms, including issuer/brand
     },
-    installation: { consume: { game1: true } },
+    installation: { consume: { [contractName]: true } },
     issuer: { produce: { Place: true } },
     brand: { produce: { Place: true } },
-    instance: { produce: { game1: true } },
+    instance: { produce: { [contractName]: true } },
   },
 };
 harden(gameManifest);
 
-export const getManifestForGame1 = ({ restoreRef }, { game1Ref }) => {
+export const getManifestForContract = ({ restoreRef }, { game1Ref }) => {
   return harden({
     manifest: gameManifest,
     installations: {
