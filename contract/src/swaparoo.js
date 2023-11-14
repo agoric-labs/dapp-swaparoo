@@ -1,5 +1,6 @@
 /** @file swap assets */
 /* eslint @typescript-eslint/no-floating-promises: "warn" */
+// @ts-check
 
 // deep import to avoid dependency on all of ERTP, vat-data
 import { AmountShape } from '@agoric/ertp/src/typeGuards.js';
@@ -7,7 +8,7 @@ import { AmountMath, AssetKind } from '@agoric/ertp/src/amountMath.js';
 import { M, getCopyBagEntries } from '@endo/patterns';
 import { E, Far } from '@endo/far';
 import '@agoric/zoe/exported.js';
-import { atomicRearrange } from '@agoric/zoe/contractSupport/zoeHelpers.js';
+import { atomicRearrange } from '@agoric/zoe/src/contractSupport/atomicTransfer.js';
 
 import '@agoric/zoe/exported.js';
 import '@agoric/zoe/src/contracts/exported.js';

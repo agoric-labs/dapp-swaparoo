@@ -1,55 +1,21 @@
 {
   "name": "swaparoo",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
   "private": true,
-  "version": "0.0.0",
-  "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "build:contract": "cd contract; yarn",
-    "build:proposal": "yarn build:contract; HOME=$PWD/dist; cd contract; yarn build:proposal",
-    "start:docker": "docker-compose up -d",
-    "docker:logs": "docker-compose logs --tail 200 -f",
-    "docker:bash": "docker-compose exec agd bash",
-    "docker:make": "docker-compose exec agd make -C /workspace/contract",
-    "make:help": "echo 'USAGE: yarn docker:make TARGET\nwhere TARGET is one of...'; cd contract; make list",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview",
-    "test": "ava"
-  },
-  "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0"
-  },
-  "devDependencies": {
-    "@agoric/rpc": "^0.6.0",
-    "@agoric/web-components": "0.12.0",
-    "@agoric/eventual-send": "^0.14.1",
-    "@agoric/notifier": "^0.6.2",
-    "@agoric/store": "^0.9.2",
-    "@agoric/ui-components": "^0.9.0",
-    "@types/react": "^18.2.15",
-    "@types/react-dom": "^18.2.7",
-    "@typescript-eslint/eslint-plugin": "^6.0.0",
-    "@typescript-eslint/parser": "^6.0.0",
-    "@vitejs/plugin-react": "^4.0.3",
-    "ava": "^5.3.0",
-    "eslint": "^8.45.0",
-    "eslint-plugin-react-hooks": "^4.6.0",
-    "eslint-plugin-react-refresh": "^0.4.3",
-    "ses": "^0.18.8",
-    "typescript": "^5.0.2",
-    "vite": "^4.4.5",
-    "zustand": "^4.4.1"
-  },
-  "ava": {
-    "files": [
-      "contract/test/**/test-*.js"
-    ],
-    "timeout": "30m"
-  },
+  "useWorkspaces": true,
+  "workspaces": [
+    "contract",
+    "ui"
+  ],
   "resolutions": {
-    "**/ses": "^0.18.8",
-    "**/@agoric/xsnap": "0.14.3-dev-9f085d3.0"
+    "@babel/code-frame": "7.18.6",
+    "@babel/highlight": "7.22.5"
+  },
+  "scripts": {
+    "preinstall": "node -e \"process.env.AGORIC_INSTALL && process.exit(0); console.warn('please use: agoric install . For details, see https://agoric.com/documentation/'); process.exit(1)\"",
+    "lint": "yarn workspaces run lint",
+    "test": "yarn workspaces run test",
+    "build": "yarn workspaces run build"
   }
 }
