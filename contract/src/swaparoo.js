@@ -19,7 +19,8 @@ const { Fail, quote: q } = assert;
 
 const trace = makeTracer('Swaparoo', true);
 
-const makeNatAmountShape = (brand, min) => harden({ brand, value: min ? M.gte(min) : M.nat() });
+const makeNatAmountShape =
+  (brand, min) => harden({ brand, value: min ? M.gte(min) : M.nat() });
 
 export const swapWithFee = (zcf, firstSeat, secondSeat, feeSeat, feeAmount) => {
   try {
@@ -67,7 +68,9 @@ export const start = async zcf => {
     };
 
     const makeSecondProposalShape = want => {
-      const givePattern = Object.fromEntries(Object.keys(want).map(k => [k, M.any()]));
+      const givePattern = Object.fromEntries(
+        Object.keys(want).map(k => [k, M.any()]),
+      );
       return M.splitRecord({
         give: M.splitRecord(givePattern),
       });
