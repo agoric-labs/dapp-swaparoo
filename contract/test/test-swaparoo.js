@@ -253,3 +253,7 @@ test('Neither Pays', async t => {
     t.deepEqual(jackBeansAmount, beans(0n));
     t.deepEqual(jackCowAmount, cowAmount);
 });
+
+test.todo('re-add issuers');
+test.todo('mis-matched offers');
+test.todo('Owner collects fees');
