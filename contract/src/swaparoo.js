@@ -9,7 +9,7 @@ import { E, Far } from '@endo/far';
 import '@agoric/zoe/exported.js';
 import { atomicRearrange } from '@agoric/zoe/src/contractSupport/atomicTransfer.js';
 import {matches} from '@endo/patterns';
-
+import{ makeCollectFeesInvitation } from '@agoric/inter-protocol/src/collectFees.js';
 import '@agoric/zoe/exported.js';
 import '@agoric/zoe/src/contracts/exported.js';
 
@@ -110,9 +110,15 @@ export const start = async zcf => {
     return zcf.makeInvitation(makeSecondInvitation, 'create a swap', undefined, proposalShape);
   };
 
-  const publicFacet = Far('API', {
+  const publicFacet = Far('Public', {
     makeFirstInvitation,
   });
-  return harden({ publicFacet });
+  const creatorFacet = Far('Creator', {
+    makeCollectFeesInvitation() {
+      return makeCollectFeesInvitation(zcf, feeSeat, feeBrand, 'Fee');
+    },
+  });
+
+  return harden({ publicFacet, creatorFacet });
 };
 harden(start);

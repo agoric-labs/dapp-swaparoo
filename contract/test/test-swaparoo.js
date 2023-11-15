@@ -269,6 +269,14 @@ test('re-add Issuers', async t => {
     const actual2ndBeans = await jack2ndSeat.getPayout('MagicBeans');
     const actual2ndBeansAmount = await beanIssuerKit.issuer.getAmountOf(actual2ndBeans);
     t.deepEqual(actual2ndBeansAmount, fourBeans);
+
+    const feeIssuer = await E(zoe).getFeeIssuer();
+    const feeBrand = await E(feeIssuer).getBrand();
+    const feeInvitation = await E(creatorFacet).makeCollectFeesInvitation();
+    const feeSeat = E(zoe).offer(feeInvitation);
+    const pmt = await E.get(E(feeSeat).getPayouts()).Fee;
+    const amt = await E(feeIssuer).getAmountOf(pmt);
+    t.deepEqual(amt, AmountMath.make(feeBrand, 2n * ONE_IST));
 });
 
 test.todo('mis-matched offers');
