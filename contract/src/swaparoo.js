@@ -99,7 +99,11 @@ export const start = async zcf => {
 
   // returns an offer to create a specific swap
   const makeFirstInvitation = issuers => {
-    issuers.forEach(i => zcf.saveIssuer(i, `Issuer${issuerNumber++}`)); // TODO cleanup
+    issuers.forEach(i => {
+      if (!Object.values( zcf.getTerms().issuers).includes(i)) {
+        return zcf.saveIssuer(i, `Issuer${issuerNumber++}`);
+      }
+    });
     const proposalShape = M.splitRecord({
       give: M.splitRecord({ Fee: feeShape }),
     });

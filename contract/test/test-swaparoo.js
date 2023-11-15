@@ -254,6 +254,58 @@ test('Neither Pays', async t => {
     t.deepEqual(jackCowAmount, cowAmount);
 });
 
-test.todo('re-add issuers');
+test('re-add Issuers', async t => {
+    const { zoe, bundle, faucet, cowIssuerKit, beanIssuerKit } = t.context;
+
+    /** as agreed by BLD staker governance */
+    const startContract = async () => {
+        const installation = await zoe.install(bundle);
+        const feeIssuer = await E(zoe).getFeeIssuer();
+        const feeBrand = await E(feeIssuer).getBrand();
+        const feeAmount = AmountMath.make(feeBrand, ONE_IST);
+        const { instance } = await zoe.startInstance(
+          installation,
+          { Fee: feeIssuer },
+          { feeAmount },
+        );
+        return instance;
+    };
+
+    const beans = x => AmountMath.make(beanIssuerKit.brand, x);
+
+    const milkyWhiteAmount = AmountMath.make(
+      cowIssuerKit.brand,
+      makeCopyBag([['Milky White', 1n]]));
+    const bessyAmount = AmountMath.make(
+      cowIssuerKit.brand,
+      makeCopyBag([['Bessy', 1n]]));
+
+    const instance = await startContract();
+    const terms = await E(zoe).getTerms(instance);
+    const context = { ...t.context, instance, ...terms };
+
+    const fiveBeans = beans(5n);
+    const { aliceSeat, jackInvitation } = await startAlice(context, fiveBeans, milkyWhiteAmount);
+    const jackSeat = await startJack(context, jackInvitation, fiveBeans, milkyWhiteAmount);
+    const actualCow = await aliceSeat.getPayout('Cow');
+
+    const actualCowAmount = await cowIssuerKit.issuer.getAmountOf(actualCow);
+    t.deepEqual(actualCowAmount, milkyWhiteAmount);
+    const actualBeans = await jackSeat.getPayout('MagicBeans');
+    const actualBeansAmount = await beanIssuerKit.issuer.getAmountOf(actualBeans);
+    t.deepEqual(actualBeansAmount, fiveBeans);
+
+    const fourBeans = beans(4n);
+    const { aliceSeat: alice2ndSeat, jackInvitation: jack2ndInvitation } = await startAlice(context, fourBeans, bessyAmount);
+    const jack2ndSeat = await startJack(context, jack2ndInvitation, fourBeans, bessyAmount);
+
+    const actual2ndCow = await alice2ndSeat.getPayout('Cow');
+    const actual2ndCowAmount = await cowIssuerKit.issuer.getAmountOf(actual2ndCow);
+    t.deepEqual(actual2ndCowAmount, bessyAmount);
+    const actual2ndBeans = await jack2ndSeat.getPayout('MagicBeans');
+    const actual2ndBeansAmount = await beanIssuerKit.issuer.getAmountOf(actual2ndBeans);
+    t.deepEqual(actual2ndBeansAmount, fourBeans);
+});
+
 test.todo('mis-matched offers');
 test.todo('Owner collects fees');
