@@ -46,7 +46,7 @@ const contractName = 'swaparoo';
 export const startContract = async permittedPowers => {
   console.error('startContract()...');
   const {
-    consume: { agoricNames, board, chainStorage, startUpgradable, zoe },
+    consume: { agoricNames, chainStorage, startUpgradable, zoe },
     // brand: {
     //   // @ts-expect-error dynamic extension to promise space
     //   produce: { Place: producePlaceBrand },
