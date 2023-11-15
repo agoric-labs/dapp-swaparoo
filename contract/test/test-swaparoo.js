@@ -54,6 +54,20 @@ const makeTestContext = async () => {
     return { zoe, bundle, faucet: feeFaucet, cowIssuerKit, beanIssuerKit };
 };
 
+/** as agreed by BLD staker governance */
+const startContract = async (zoe, bundle) => {
+    const installation = await zoe.install(bundle);
+    const feeIssuer = await E(zoe).getFeeIssuer();
+    const feeBrand = await E(feeIssuer).getBrand();
+    const feeAmount = AmountMath.make(feeBrand, ONE_IST);
+    const { instance, creatorFacet } = await zoe.startInstance(
+      installation,
+      { Fee: feeIssuer },
+      { feeAmount },
+    );
+    return { instance, creatorFacet };
+};
+
 const startAlice = async (context, beansAmount, cowsAmount, alicePays = true) => {
     const { zoe, instance, beanIssuerKit, faucet, cowIssuerKit } = context;
     const publicFacet = zoe.getPublicFacet(instance);
@@ -111,21 +125,7 @@ const startJack = async (ctx, jackInvitation, beansAmount, cowsAmount, jackPays 
 test.before(async t => (t.context = await makeTestContext()));
 
 test('basic swap', async t => {
-    const { zoe, bundle, faucet, cowIssuerKit, beanIssuerKit } = t.context;
-
-    /** as agreed by BLD staker governance */
-    const startContract = async () => {
-        const installation = await zoe.install(bundle);
-        const feeIssuer = await E(zoe).getFeeIssuer();
-        const feeBrand = await E(feeIssuer).getBrand();
-        const feeAmount = AmountMath.make(feeBrand, ONE_IST);
-        const { instance } = await zoe.startInstance(
-            installation,
-            { Fee: feeIssuer },
-            { feeAmount },
-        );
-        return instance;
-    };
+    const { zoe, bundle, cowIssuerKit, beanIssuerKit } = t.context;
 
     const beans = x => AmountMath.make(beanIssuerKit.brand, x);
     const fiveBeans = beans(5n);
@@ -134,7 +134,7 @@ test('basic swap', async t => {
         cowIssuerKit.brand,
         makeCopyBag([['Milky White', 1n]]));
 
-    const instance = await startContract();
+    const { instance } = await startContract(zoe, bundle);
     const terms = await E(zoe).getTerms(instance);
     const context = { ...t.context, instance, ...terms };
 
@@ -151,21 +151,10 @@ test('basic swap', async t => {
 });
 
 test('Jack Pays', async t => {
-    const { zoe, bundle, faucet, cowIssuerKit, beanIssuerKit } = t.context;
+    const { zoe, bundle, cowIssuerKit, beanIssuerKit } = t.context;
     const feeIssuer = await E(zoe).getFeeIssuer();
     const feeBrand = await E(feeIssuer).getBrand();
     const feeAmount = AmountMath.make(feeBrand, ONE_IST);
-
-    /** as agreed by BLD staker governance */
-    const startContract = async () => {
-        const installation = await zoe.install(bundle);
-        const { instance } = await zoe.startInstance(
-            installation,
-            { Fee: feeIssuer },
-            { feeAmount },
-        );
-        return instance;
-    };
 
     const beans = x => AmountMath.make(beanIssuerKit.brand, x);
     const fiveBeans = beans(5n);
@@ -174,7 +163,7 @@ test('Jack Pays', async t => {
         cowIssuerKit.brand,
         makeCopyBag([['Milky White', 1n]]));
 
-    const instance = await startContract();
+    const { instance } = await startContract(zoe, bundle);
     const terms = await E(zoe).getTerms(instance);
     const context = { ...t.context, instance, ...terms };
 
@@ -208,17 +197,6 @@ test('Neither Pays', async t => {
     const feeBrand = await E(feeIssuer).getBrand();
     const feeAmount = AmountMath.make(feeBrand, ONE_IST);
 
-    /** as agreed by BLD staker governance */
-    const startContract = async () => {
-        const installation = await zoe.install(bundle);
-        const { instance } = await zoe.startInstance(
-            installation,
-            { Fee: feeIssuer },
-            { feeAmount },
-        );
-        return instance;
-    };
-
     const beans = x => AmountMath.make(beanIssuerKit.brand, x);
     const fiveBeans = beans(5n);
 
@@ -226,7 +204,7 @@ test('Neither Pays', async t => {
         cowIssuerKit.brand,
         makeCopyBag([['Milky White', 1n]]));
 
-    const instance = await startContract();
+    const { instance } = await startContract(zoe, bundle);
     const terms = await E(zoe).getTerms(instance);
     const context = { ...t.context, instance, ...terms };
 
@@ -255,21 +233,7 @@ test('Neither Pays', async t => {
 });
 
 test('re-add Issuers', async t => {
-    const { zoe, bundle, faucet, cowIssuerKit, beanIssuerKit } = t.context;
-
-    /** as agreed by BLD staker governance */
-    const startContract = async () => {
-        const installation = await zoe.install(bundle);
-        const feeIssuer = await E(zoe).getFeeIssuer();
-        const feeBrand = await E(feeIssuer).getBrand();
-        const feeAmount = AmountMath.make(feeBrand, ONE_IST);
-        const { instance } = await zoe.startInstance(
-          installation,
-          { Fee: feeIssuer },
-          { feeAmount },
-        );
-        return instance;
-    };
+    const { zoe, bundle, cowIssuerKit, beanIssuerKit } = t.context;
 
     const beans = x => AmountMath.make(beanIssuerKit.brand, x);
 
@@ -280,7 +244,7 @@ test('re-add Issuers', async t => {
       cowIssuerKit.brand,
       makeCopyBag([['Bessy', 1n]]));
 
-    const instance = await startContract();
+    const { instance, creatorFacet } = await startContract(zoe, bundle);
     const terms = await E(zoe).getTerms(instance);
     const context = { ...t.context, instance, ...terms };
 
