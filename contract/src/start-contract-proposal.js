@@ -47,17 +47,17 @@ export const startContract = async permittedPowers => {
   console.error('startContract()...');
   const {
     consume: { agoricNames, board, chainStorage, startUpgradable, zoe },
-    brand: {
-      // @ts-expect-error dynamic extension to promise space
-      produce: { Place: producePlaceBrand },
-    },
-    issuer: {
-      // @ts-expect-error dynamic extension to promise space
-      produce: { Place: producePlaceIssuer },
-    },
+    // brand: {
+    //   // @ts-expect-error dynamic extension to promise space
+    //   produce: { Place: producePlaceBrand },
+    // },
+    // issuer: {
+    //   // @ts-expect-error dynamic extension to promise space
+    //   produce: { Place: producePlaceIssuer },
+    // },
     instance: {
       // @ts-expect-error dynamic extension to promise space
-      produce: { game1: produceInstance },
+      produce: { [contractName]: produceInstance },
     },
   } = permittedPowers;
 
@@ -65,61 +65,51 @@ export const startContract = async permittedPowers => {
   const ist = {
     brand: istBrand,
   };
-  // NOTE: joinPrice could be configurable
-  const terms = { joinPrice: AmountMath.make(ist.brand, 25n * CENT) };
+  // NOTE: TODO all terms for the contract go here
+  const terms = {};
 
   // agoricNames gets updated each time; the promise space only once XXXXXXX
-  const installation = await E(agoricNames).lookup('installation', 'game1');
+  const installation = await E(agoricNames).lookup('installation', contractName);
 
-  const contractName = 'swaparoo';
   const { instance } = await E(startUpgradable)({
     installation,
     label: contractName,
     terms,
   });
   console.log('CoreEval script: started game contract', instance);
-  const {
-    brands: { Place: brand },
-    issuers: { Place: issuer },
-  } = await E(zoe).getTerms(instance);
+  // const {} = await E(zoe).getTerms(instance);
 
-  console.log('CoreEval script: share via agoricNames:', brand);
+  console.log('CoreEval script: share via agoricNames: none');
 
   produceInstance.reset();
   produceInstance.resolve(instance);
 
-  producePlaceBrand.reset();
-  producePlaceIssuer.reset();
-  producePlaceBrand.resolve(brand);
-  producePlaceIssuer.resolve(issuer);
-
-  await publishBrandInfo(chainStorage, board, brand);
   console.log(`${contractName} (re)installed`);
 };
 
 /** @type { import("@agoric/vats/src/core/lib-boot").BootstrapManifest } */
-const gameManifest = {
+const contractManifest = {
   [startContract.name]: {
     consume: {
       agoricNames: true,
-      board: true, // to publish boardAux info for game NFT
-      chainStorage: true, // to publish boardAux info for game NFT
+      // board: true, // to publish boardAux info for the contract
+      chainStorage: true, // to publish boardAux info for contract
       startUpgradable: true, // to start contract and save adminFacet
       zoe: true, // to get contract terms, including issuer/brand
     },
     installation: { consume: { [contractName]: true } },
-    issuer: { produce: { Place: true } },
-    brand: { produce: { Place: true } },
+    // issuer: { produce: { Place: true } },
+    // brand: { produce: { Place: true } },
     instance: { produce: { [contractName]: true } },
   },
 };
-harden(gameManifest);
+harden(contractManifest);
 
-export const getManifestForContract = ({ restoreRef }, { game1Ref }) => {
+export const getManifestForContract = ({ restoreRef }, { [`${contractName}Ref`]: contractRef }) => {
   return harden({
-    manifest: gameManifest,
+    manifest: contractManifest,
     installations: {
-      game1: restoreRef(game1Ref),
+      [contractName]: restoreRef(contractRef),
     },
   });
 };

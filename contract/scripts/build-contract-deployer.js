@@ -8,6 +8,8 @@
 import { makeHelpers } from '@agoric/deploy-script-support';
 import { getManifestForContract } from '../src/start-contract-proposal.js';
 
+const contractName = 'swaparoo';
+
 /** @type {import('@agoric/deploy-script-support/src/externalTypes.js').ProposalBuilder} */
 export const contractProposalBuilder = async ({ publishRef, install }) => {
   return harden({
@@ -15,7 +17,7 @@ export const contractProposalBuilder = async ({ publishRef, install }) => {
     getManifestCall: [
       getManifestForContract.name,
       {
-        game1Ref: publishRef(
+        [`${contractName}Ref`]: publishRef(
           install(
             '../src/swaparoo.js',
             '../bundles/bundle-contract.js',
@@ -30,5 +32,5 @@ export const contractProposalBuilder = async ({ publishRef, install }) => {
 /** @type {DeployScriptFunction} */
 export default async (homeP, endowments) => {
   const { writeCoreProposal } = await makeHelpers(homeP, endowments);
-  await writeCoreProposal('swaparoo', contractProposalBuilder);
+  await writeCoreProposal('start-contract', contractProposalBuilder);
 };
