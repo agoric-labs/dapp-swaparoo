@@ -3,19 +3,19 @@
 // @ts-check
 
 // deep import to avoid dependency on all of ERTP, vat-data
-import { AmountShape } from '@agoric/ertp/src/typeGuards.js';
 import { AmountMath, AssetKind } from '@agoric/ertp/src/amountMath.js';
-import { M, getCopyBagEntries } from '@endo/patterns';
+import { M } from '@endo/patterns';
 import { E, Far } from '@endo/far';
 import '@agoric/zoe/exported.js';
 import { atomicRearrange } from '@agoric/zoe/src/contractSupport/atomicTransfer.js';
+import {matches} from '@endo/patterns';
 
 import '@agoric/zoe/exported.js';
 import '@agoric/zoe/src/contracts/exported.js';
 
 import { makeTracer } from './debug.js';
 
-const { Fail, quote: q } = assert;
+const { quote: q } = assert;
 
 const trace = makeTracer('Swaparoo', true);
 
@@ -25,6 +25,7 @@ const makeNatAmountShape =
 export const swapWithFee = (zcf, firstSeat, secondSeat, feeSeat, feeAmount) => {
   try {
     const { Fee: _, ...firstGive } = firstSeat.getProposal().give;
+
     atomicRearrange(zcf,
       harden([
         [firstSeat, secondSeat, firstGive],
@@ -62,25 +63,35 @@ export const start = async zcf => {
   const makeSecondInvitation = (firstSeat, id) => {
     const { want, give } = firstSeat.getProposal();
 
-    /** @type {OfferHandler} */
-    const secondSeatOfferHandler = secondSeat => {
-      return swapWithFee(zcf, firstSeat, secondSeat, feeSeat, feeAmount);
-    };
-
     const makeSecondProposalShape = want => {
       const givePattern = Object.fromEntries(
         Object.keys(want).map(k => [k, M.any()]),
       );
+
       return M.splitRecord({
         give: M.splitRecord(givePattern),
       });
+    };
+
+    /** @type {OfferHandler} */
+    const secondSeatOfferHandler = secondSeat => {
+      if (!matches(secondSeat.getProposal(), makeSecondProposalShape(want))) {
+        // The second invitation was burned; let them both know it didn't work
+        const error = Error(`Proposals didn't match, first want: ${
+          q(want)
+        }, second give: ${q(secondSeat.getProposal().give)}`);
+        secondSeat.fail(error);
+        firstSeat.fail(error);
+        return;
+      }
+
+      return swapWithFee(zcf, firstSeat, secondSeat, feeSeat, feeAmount);
     };
 
     const secondSeatInvitation = zcf.makeInvitation(
       secondSeatOfferHandler,
       'matchOffer',
       { give, want }, // "give" and "want" are from the proposer's perspective
-      makeSecondProposalShape(want),
     );
 
     return secondSeatInvitation;
