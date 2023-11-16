@@ -97,34 +97,30 @@ const connectWallet = async () => {
 };
 
 const makeOffer = () => {
-  const { wallet, gameInstance, brands, issuers = [] } = useAppStore.getState();
-  const placeBrand = brands?.find(([name]) => name === 'Place')?.at(1);
+  const { wallet, gameInstance, brands, issuers } = useAppStore.getState();
   const istBrand = brands?.find(([name]) => name === 'IST')?.at(1);
+  const istIssuer = issuers?.find(([name]) => name === 'IST')?.at(1);
+  const bldBrand = brands?.find(([name]) => name === 'BLD')?.at(1);
+  const bldIssuer = issuers?.find(([name]) => name === 'BLD')?.at(1);
 
   const value = makeCopyBag([
     ['FTX Arena', 2n],
     ['Crypto.com Arena', 1n],
   ]);
 
-  const want = {
-    Places: {
-      brand: placeBrand,
-      value,
-    },
-  };
-
-  const give = { Price: { brand: istBrand, value: 250000n } };
+  const give = { Price: { brand: istBrand, value: 15_000_000n }, Fee: { brand: istBrand, value: 1_000_000n } };
+  const want = { Value: { brand: bldBrand, value: 1_000_000n } };
 
   wallet?.makeOffer(
     {
       source: 'contract',
       instance: gameInstance,
       publicInvitationMaker: 'makeFirstInvitation',
-      // HACK just send all known issuers every time
-      invitationArgs: [issuers],
+      // HACK setup a trade
+      invitationArgs: [[istIssuer, bldIssuer]],
     },
     { give, want },
-    [],
+    undefined,
     (update: { status: string; data?: unknown }) => {
       if (update.status === 'error') {
         alert(`Offer error: ${update.data}`);
