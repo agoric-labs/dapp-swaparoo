@@ -46,7 +46,7 @@ const contractName = 'swaparoo';
 export const startContract = async permittedPowers => {
   console.error('startContract()...');
   const {
-    consume: { agoricNames, chainStorage, startUpgradable, zoe },
+    consume: { agoricNames, chainStorage, startUpgradable, zoe, namesByAddressAdmin },
     // brand: {
     //   // @ts-expect-error dynamic extension to promise space
     //   produce: { Place: producePlaceBrand },
@@ -56,7 +56,6 @@ export const startContract = async permittedPowers => {
     //   produce: { Place: producePlaceIssuer },
     // },
     instance: {
-      // @ts-expect-error dynamic extension to promise space
       produce: { [contractName]: produceInstance },
     },
   } = permittedPowers;
@@ -66,7 +65,8 @@ export const startContract = async permittedPowers => {
     brand: istBrand,
   };
   // NOTE: TODO all terms for the contract go here
-  const terms = {};
+  let oneIST = AmountMath.make(istBrand, 1n);
+  const terms = { feeAmount: oneIST, namesByAddressAdmin };
 
   // agoricNames gets updated each time; the promise space only once XXXXXXX
   const installation = await E(agoricNames).lookup('installation', contractName);
@@ -96,6 +96,7 @@ const contractManifest = {
       chainStorage: true, // to publish boardAux info for contract
       startUpgradable: true, // to start contract and save adminFacet
       zoe: true, // to get contract terms, including issuer/brand
+      namesByAddressAdmin: true, // to convert string addresses to depositFacets
     },
     installation: { consume: { [contractName]: true } },
     // issuer: { produce: { Place: true } },

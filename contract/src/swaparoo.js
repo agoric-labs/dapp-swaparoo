@@ -47,16 +47,42 @@ export const swapWithFee = (zcf, firstSeat, secondSeat, feeSeat, feeAmount) => {
 let issuerNumber = 1;
 
 /**
- * @param {ZCF<{feeAmount: Amount<'nat'>}>} zcf
+ * ref https://github.com/Agoric/agoric-sdk/issues/8408#issuecomment-1741445458
+ *
+ * @param {ERef<import('@agoric/vats').NameAdmin>} namesByAddressAdmin
+ * @param namesByAddressAdminP
+ */
+const fixHub = async namesByAddressAdmin => {
+  /** @type {import('@agoric/vats').NameHub} */
+    // @ts-expect-error mock. no has, keys, ...
+  const hub = Far('Hub work-around', {
+      lookup: async (addr, key, ...rest) => {
+        if (!(addr && key && rest.length === 0)) {
+          throw Error('unsupported');
+        }
+        await E(namesByAddressAdmin).reserve(addr);
+        const addressAdmin = await E(namesByAddressAdmin).lookupAdmin(addr);
+        assert(addressAdmin, 'no admin???');
+        await E(addressAdmin).reserve(key);
+        const addressHub = E(addressAdmin).readonly();
+        return E(addressHub).lookup(key);
+      },
+    });
+  return hub;
+};
+
+/**
+ * @param {ZCF<{feeAmount: Amount<'nat'>, namesByAddressAdmin: NamesByAddressAdmin}>} zcf
  */
 export const start = async zcf => {
   // set up fee handling
-  const { feeAmount } = zcf.getTerms();
+  const { feeAmount, namesByAddressAdmin } = zcf.getTerms();
   /** @type { ERef<Issuer<"nat">> } */
   const stableIssuer = await E(zcf.getZoeService()).getFeeIssuer();
   const feeBrand = await E(stableIssuer).getBrand();
   const { zcfSeat: feeSeat } = zcf.makeEmptySeatKit();
   const feeShape = makeNatAmountShape(feeBrand, 1_000_000n);
+  const depositFacetFromAddr = fixHub(namesByAddressAdmin);
 
   /** @type {OfferHandler} */
   const makeSecondInvitation = (firstSeat, id) => {
@@ -96,8 +122,13 @@ export const start = async zcf => {
     return secondSeatInvitation;
   };
 
-  // returns an offer to create a specific swap
-  const makeFirstInvitation = issuers => {
+  /**
+   * returns an offer to create a specific swap
+   *
+   * @param {Issuer[]} issuers
+   * @param {string} secondPartyAddress
+   */
+  const makeFirstInvitation = (issuers, secondPartyAddress) => {
     issuers.forEach(i => {
       if (!Object.values( zcf.getTerms().issuers).includes(i)) {
         return zcf.saveIssuer(i, `Issuer${issuerNumber++}`);
@@ -106,7 +137,14 @@ export const start = async zcf => {
     const proposalShape = M.splitRecord({
       give: M.splitRecord({ Fee: feeShape }),
     });
-    return zcf.makeInvitation(makeSecondInvitation, 'create a swap', undefined, proposalShape);
+    const secondDepositFacet = E(depositFacetFromAddr).lookup(
+      secondPartyAddress,
+      'depositFacet',
+    );
+
+    const firstInvitation = zcf.makeInvitation(makeSecondInvitation, 'create a swap', undefined, proposalShape);
+    void E(secondDepositFacet).deposit(firstInvitation);
+    return 'The invitation has been transferred.';
   };
 
   const publicFacet = Far('Public', {
