@@ -44,7 +44,7 @@ interface Purse {
 
 interface AppState {
   wallet?: Wallet;
-  gameInstance?: unknown;
+  contractInstance?: unknown;
   brands?: Array<[string, unknown]>;
   issuers?: Array<[string, unknown]>;
   purses?: Array<Purse>;
@@ -58,7 +58,7 @@ const setup = async () => {
     instances => {
       console.log('got instances', instances);
       useAppStore.setState({
-        gameInstance: instances.find(([name]) => name === contractName)!.at(1),
+        contractInstance: instances.find(([name]) => name === contractName)!.at(1),
       });
       // Object.fromEntries(instances)[APP_NAME]
     }
@@ -97,7 +97,7 @@ const connectWallet = async () => {
 };
 
 const makeOffer = () => {
-  const { wallet, gameInstance, brands, issuers } = useAppStore.getState();
+  const { wallet, contractInstance, brands, issuers } = useAppStore.getState();
   const istBrand = brands?.find(([name]) => name === 'IST')?.at(1);
   const istIssuer = issuers?.find(([name]) => name === 'IST')?.at(1);
   const bldBrand = brands?.find(([name]) => name === 'BLD')?.at(1);
@@ -114,7 +114,7 @@ const makeOffer = () => {
   wallet?.makeOffer(
     {
       source: 'contract',
-      instance: gameInstance,
+      instance: contractInstance,
       publicInvitationMaker: 'makeFirstInvitation',
       // HACK setup a trade
       invitationArgs: [[istIssuer, bldIssuer]],
