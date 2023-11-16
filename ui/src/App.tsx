@@ -108,7 +108,7 @@ const makeOffer = () => {
     {
       source: 'contract',
       instance: gameInstance,
-      publicInvitationMaker: 'makeSwapInvitation',
+      publicInvitationMaker: 'makeFirstInvitation',
     },
     { give, want },
     undefined,

@@ -54,8 +54,7 @@ export const start = async zcf => {
   const { feeAmount } = zcf.getTerms();
   /** @type { ERef<Issuer<"nat">> } */
   const stableIssuer = await E(zcf.getZoeService()).getFeeIssuer();
-  const feeBrand = await stableIssuer.getBrand();
-  //const { brand: feeBrand } = await zcf.saveIssuer(stableIssuer, 'Fee');
+  const feeBrand = await E(stableIssuer).getBrand();
   const { zcfSeat: feeSeat } = zcf.makeEmptySeatKit();
   const feeShape = makeNatAmountShape(feeBrand, 1_000_000n);
 
