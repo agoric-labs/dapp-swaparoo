@@ -29,6 +29,7 @@ In the `ui` directory:
 
 ```sh
 yarn
+yarn dev
 ```
 
 Build the contract and a proposal to start it:

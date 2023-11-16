@@ -46,6 +46,7 @@ interface AppState {
   wallet?: Wallet;
   gameInstance?: unknown;
   brands?: Array<[string, unknown]>;
+  issuers?: Array<[string, unknown]>;
   purses?: Array<Purse>;
 }
 
@@ -72,6 +73,16 @@ const setup = async () => {
       });
     }
   );
+
+  watcher.watchLatest<Array<[string, unknown]>>(
+    [Kind.Data, 'published.agoricNames.issuer'],
+    issuers => {
+      console.log('Got issuers', issuers);
+      useAppStore.setState({
+        issuers,
+      });
+    }
+  );
 };
 
 const connectWallet = async () => {
@@ -86,7 +97,7 @@ const connectWallet = async () => {
 };
 
 const makeOffer = () => {
-  const { wallet, gameInstance, brands } = useAppStore.getState();
+  const { wallet, gameInstance, brands, issuers = [] } = useAppStore.getState();
   const placeBrand = brands?.find(([name]) => name === 'Place')?.at(1);
   const istBrand = brands?.find(([name]) => name === 'IST')?.at(1);
 
@@ -109,9 +120,11 @@ const makeOffer = () => {
       source: 'contract',
       instance: gameInstance,
       publicInvitationMaker: 'makeFirstInvitation',
+      // HACK just send all known issuers every time
+      invitationArgs: [issuers],
     },
     { give, want },
-    undefined,
+    [],
     (update: { status: string; data?: unknown }) => {
       if (update.status === 'error') {
         alert(`Offer error: ${update.data}`);
