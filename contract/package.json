@@ -15,6 +15,8 @@
     "@agoric/zoe": "^0.26.2",
     "@agoric/inter-protocol": "^0.16.1",
     "@agoric/ertp": "^0.16.2",
+    "@agoric/time": "^0.3.3-u12.0",
+    "@agoric/vats": "^0.15.2-u12.0",
     "@endo/far": "^0.2.21",
     "@endo/marshal": "^0.8.9",
     "@endo/patterns": "^0.2.5"

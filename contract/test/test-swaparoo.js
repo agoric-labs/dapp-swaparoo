@@ -280,4 +280,3 @@ test('re-add Issuers', async t => {
 });
 
 test.todo('mis-matched offers');
-test.todo('Owner collects fees');
