@@ -19,6 +19,7 @@ import { makeCopyBag } from '@agoric/store';
 type Wallet = Awaited<ReturnType<typeof makeAgoricWalletConnection>>;
 
 export const contractName = 'swaparoo';
+const gov1 = 'agoric14t2eagaphnkj33l9hvcrf90t3xffkt0u3xy6uh';
 
 const watcher = makeAgoricChainStorageWatcher(
   'http://localhost:26657',
@@ -89,6 +90,7 @@ const connectWallet = async () => {
   await suggestChain('https://local.agoric.net/network-config');
   const wallet = await makeAgoricWalletConnection(watcher);
   useAppStore.setState({ wallet });
+  console.log('wallet', wallet);
   const { pursesNotifier } = wallet;
   for await (const purses of subscribeLatest(pursesNotifier)) {
     console.log('got purses', purses);
@@ -108,6 +110,7 @@ const makeOffer = () => {
     ['Crypto.com Arena', 1n],
   ]);
 
+  // const give = { Price: { brand: istBrand, value: 15_000_000n } };
   const give = { Price: { brand: istBrand, value: 15_000_000n }, Fee: { brand: istBrand, value: 1_000_000n } };
   const want = { Value: { brand: bldBrand, value: 1_000_000n } };
 
@@ -120,7 +123,7 @@ const makeOffer = () => {
       invitationArgs: [[istIssuer, bldIssuer]],
     },
     { give, want },
-    undefined,
+    { addr: gov1 },
     (update: { status: string; data?: unknown }) => {
       if (update.status === 'error') {
         alert(`Offer error: ${update.data}`);
@@ -145,7 +148,9 @@ function App() {
     purses,
   }));
   const istPurse = purses?.find(p => p.brandPetname === 'IST');
-  const placesPurse = purses?.find(p => p.brandPetname === 'Place');
+  const bldPurse = purses?.find(p => p.brandPetname === 'BLD');
+  const invitationPurse = purses?.find(p => p.brandPetname === 'Invitation');
+  const invites = invitationPurse ? invitationPurse.currentAmount.value as Array : [];
 
   const buttonLabel = wallet ? 'Make Offer' : 'Connect Wallet';
   const onClick = () => {
@@ -189,22 +194,33 @@ function App() {
                 )}
               </div>
             )}
-            {wallet && (
+            {bldPurse && (
               <div>
-                <b>Places:</b>
-                {placesPurse ? (
-                  <ul style={{ marginTop: 0, textAlign: 'left' }}>
-                    {(placesPurse.currentAmount.value as CopyBag).payload.map(
-                      ([name, number]) => (
-                        <li key={name}>
-                          {String(number)} {name}
-                        </li>
-                      )
-                    )}
-                  </ul>
-                ) : (
-                  'None'
+                <b>BLD: </b>
+                {stringifyAmountValue(
+                  bldPurse.currentAmount,
+                  bldPurse.displayInfo.assetKind,
+                  bldPurse.displayInfo.decimalPlaces
                 )}
+              </div>
+            )}
+            {wallet && invitationPurse && (
+              <div>
+                <b>Invitations:  </b>
+                {
+                  invites.length ? (
+                    <ul style={{ marginTop: 0, textAlign: 'left' }}>
+                      {invites.map(
+                        ([name, number]) => (
+                          <li key={name}>
+                            {String(number)} {name}
+                          </li>
+                        )
+                      )}
+                    </ul>
+                  ) : (
+                    'None'
+                  )}
               </div>
             )}
           </div>
