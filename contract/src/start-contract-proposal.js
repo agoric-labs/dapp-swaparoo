@@ -46,7 +46,11 @@ const contractName = 'swaparoo';
 export const startContract = async permittedPowers => {
   console.error('startContract()...');
   const {
-    consume: { agoricNames, chainStorage, startUpgradable, zoe, namesByAddressAdmin },
+    consume: {
+      agoricNames,
+      startUpgradable,
+      namesByAddressAdmin: namesByAddressAdminP,
+    },
     // brand: {
     //   // @ts-expect-error dynamic extension to promise space
     //   produce: { Place: producePlaceBrand },
@@ -66,6 +70,7 @@ export const startContract = async permittedPowers => {
   };
   // NOTE: TODO all terms for the contract go here
   let oneIST = AmountMath.make(istBrand, 1n);
+  const namesByAddressAdmin = await namesByAddressAdminP;
   const terms = { feeAmount: oneIST, namesByAddressAdmin };
 
   // agoricNames gets updated each time; the promise space only once XXXXXXX
