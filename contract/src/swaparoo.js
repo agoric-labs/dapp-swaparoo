@@ -2,8 +2,6 @@
 /* eslint @typescript-eslint/no-floating-promises: "warn" */
 // @ts-check
 
-// deep import to avoid dependency on all of ERTP, vat-data
-import { AmountMath, AssetKind } from '@agoric/ertp/src/amountMath.js';
 import { M } from '@endo/patterns';
 import { E, Far } from '@endo/far';
 import '@agoric/zoe/exported.js';
@@ -85,7 +83,7 @@ export const start = async zcf => {
   const depositFacetFromAddr = fixHub(namesByAddressAdmin);
 
   /** @type {OfferHandler} */
-  const makeSecondInvitation = (firstSeat, id) => {
+  const makeSecondInvitation = async (firstSeat, { addr: secondPartyAddress }) => {
     const { want, give } = firstSeat.getProposal();
 
     const makeSecondProposalShape = want => {
@@ -113,22 +111,27 @@ export const start = async zcf => {
       return swapWithFee(zcf, firstSeat, secondSeat, feeSeat, feeAmount);
     };
 
-    const secondSeatInvitation = zcf.makeInvitation(
+    const secondSeatInvitation = await zcf.makeInvitation(
       secondSeatOfferHandler,
       'matchOffer',
       { give, want }, // "give" and "want" are from the proposer's perspective
     );
 
-    return secondSeatInvitation;
+    const secondDepositFacet = await E(depositFacetFromAddr).lookup(
+      secondPartyAddress,
+      'depositFacet',
+    );
+
+    await E(secondDepositFacet).receive(secondSeatInvitation);
+    return 'invitation sent';
   };
 
   /**
    * returns an offer to create a specific swap
    *
    * @param {Issuer[]} issuers
-   * @param {string} secondPartyAddress
    */
-  const makeFirstInvitation = (issuers, secondPartyAddress) => {
+  const makeFirstInvitation = issuers => {
     issuers.forEach(i => {
       if (!Object.values( zcf.getTerms().issuers).includes(i)) {
         return zcf.saveIssuer(i, `Issuer${issuerNumber++}`);
@@ -137,14 +140,11 @@ export const start = async zcf => {
     const proposalShape = M.splitRecord({
       give: M.splitRecord({ Fee: feeShape }),
     });
-    const secondDepositFacet = E(depositFacetFromAddr).lookup(
-      secondPartyAddress,
-      'depositFacet',
-    );
 
-    const firstInvitation = zcf.makeInvitation(makeSecondInvitation, 'create a swap', undefined, proposalShape);
-    void E(secondDepositFacet).deposit(firstInvitation);
-    return 'The invitation has been transferred.';
+
+    const firstInvitation =
+      zcf.makeInvitation(makeSecondInvitation, 'create a swap', undefined, proposalShape);
+    return firstInvitation;
   };
 
   const publicFacet = Far('Public', {

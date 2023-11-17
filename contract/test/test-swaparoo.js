@@ -11,6 +11,8 @@ import {makeCopyBag} from '@endo/patterns';
 import {AmountMath, AssetKind, makeIssuerKit} from '@agoric/ertp';
 import {makeZoeKitForTest} from '@agoric/zoe/tools/setup-zoe.js';
 import centralSupplyBundle from '@agoric/vats/bundles/bundle-centralSupply.js';
+import {makeNameHubKit} from '@agoric/vats';
+
 import {mintStablePayment} from './mintStable.js';
 
 /** @param {string} ref */
@@ -22,10 +24,12 @@ const contractPath = asset(`../src/swaparoo.js`);
 const test = anyTest;
 
 const ONE_IST = 1_000_000n;
+const DEPOSIT_ADDRESS = 'DE6O517_ADD4';
+let depositAddress_incr = 0;
 
-/**
- * Facilities such as zoe are assumed to be available.
- */
+const DEPOSIT_FACET_KEY = 'depositFacet';
+
+/** Facilities such as zoe are assumed to be available. */
 const makeTestContext = async () => {
     const bundle = await bundleSource(contractPath);
     const { zoeService: zoe, feeMintAccess } = makeZoeKitForTest();
@@ -35,7 +39,7 @@ const makeTestContext = async () => {
     const feeIssuer = await E(zoe).getFeeIssuer();
 
     /** @param {bigint} value */
-    const feeFaucet = async value => {
+    const faucet = async value => {
         const pmt = await mintStablePayment(value, {
             centralSupply,
             feeMintAccess,
@@ -50,12 +54,31 @@ const makeTestContext = async () => {
     const cowIssuerKit = makeIssuerKit('cows', AssetKind.COPY_BAG);
     const beanIssuerKit = makeIssuerKit('magic beans');
 
+    const { nameAdmin } = makeNameHubKit();
 
-    return { zoe, bundle, faucet: feeFaucet, cowIssuerKit, beanIssuerKit };
+    return { zoe, bundle, faucet, cowIssuerKit, beanIssuerKit, nameAdmin };
+};
+
+const setupDepositFacet = async context => {
+    const { zoe, nameAdmin } = context;
+    const depositAddress = `DEPOSIT_ADDRESS_${depositAddress_incr++}`;
+
+    const { nameAdmin: addressAdmin } = await E(
+      nameAdmin,
+    ).provideChild(depositAddress, [DEPOSIT_FACET_KEY]);
+
+    const invitationPurse =
+      await E(E(zoe).getInvitationIssuer()).makeEmptyPurse();
+    const depositFacet = await E(invitationPurse).getDepositFacet();
+    await E(addressAdmin).default(
+      DEPOSIT_FACET_KEY,
+      depositFacet,
+    );
+    return { invitationPurse, addressAdmin, depositAddress };
 };
 
 /** as agreed by BLD staker governance */
-const startContract = async (zoe, bundle) => {
+const startContract = async (zoe, bundle, nameAdmin) => {
     const installation = await zoe.install(bundle);
     const feeIssuer = await E(zoe).getFeeIssuer();
     const feeBrand = await E(feeIssuer).getBrand();
@@ -63,12 +86,12 @@ const startContract = async (zoe, bundle) => {
     const { instance, creatorFacet } = await zoe.startInstance(
       installation,
       { Fee: feeIssuer },
-      { feeAmount },
+      { feeAmount, namesByAddressAdmin: nameAdmin },
     );
     return { instance, creatorFacet };
 };
 
-const startAlice = async (context, beansAmount, cowsAmount, alicePays = true) => {
+const startAlice = async (context, beansAmount, cowsAmount, depositAddress, alicePays = true) => {
     const { zoe, instance, beanIssuerKit, faucet, cowIssuerKit } = context;
     const publicFacet = zoe.getPublicFacet(instance);
     const terms = await E(zoe).getTerms(instance);
@@ -93,12 +116,14 @@ const startAlice = async (context, beansAmount, cowsAmount, alicePays = true) =>
     const seat = await zoe.offer(firstInvitation, proposal, {
         Fee: feePayment,
         MagicBeans: beanPayment,
-    });
-    const jackInvitation = await E(seat).getOfferResult();
-    return { aliceSeat: seat, jackInvitation };
+      },
+      { addr: depositAddress },
+    );
+    const offerResult = await E(seat).getOfferResult();
+    return { aliceSeat: seat, offerResult };
 };
 
-const startJack = async (ctx, jackInvitation, beansAmount, cowsAmount, jackPays = false) => {
+const startJack = async (ctx, beansAmount, cowsAmount, invitationPurse, jackPays = false) => {
     const { zoe, instance, faucet, cowIssuerKit } = ctx;
     const terms = await E(zoe).getTerms(instance);
     const { feeAmount } = terms;
@@ -118,6 +143,10 @@ const startJack = async (ctx, jackInvitation, beansAmount, cowsAmount, jackPays 
         Cow: cowPayment,
         ...(jackPays ? { Refund: feePayment } : {}),
     };
+
+    const invitationAmount = await E(invitationPurse).getCurrentAmount();
+    const jackInvitation = await E(invitationPurse).withdraw(invitationAmount);
+
     return await zoe.offer(jackInvitation, proposal, payments);
 };
 
@@ -125,7 +154,7 @@ const startJack = async (ctx, jackInvitation, beansAmount, cowsAmount, jackPays 
 test.before(async t => (t.context = await makeTestContext()));
 
 test('basic swap', async t => {
-    const { zoe, bundle, cowIssuerKit, beanIssuerKit } = t.context;
+    const { zoe, bundle, cowIssuerKit, beanIssuerKit, nameAdmin } = t.context;
 
     const beans = x => AmountMath.make(beanIssuerKit.brand, x);
     const fiveBeans = beans(5n);
@@ -134,12 +163,16 @@ test('basic swap', async t => {
         cowIssuerKit.brand,
         makeCopyBag([['Milky White', 1n]]));
 
-    const { instance } = await startContract(zoe, bundle);
+    const { instance } = await startContract(zoe, bundle, nameAdmin);
     const terms = await E(zoe).getTerms(instance);
     const context = { ...t.context, instance, ...terms };
+    const { invitationPurse, depositAddress } = await setupDepositFacet(context);
 
-    const { aliceSeat, jackInvitation } = await startAlice(context, fiveBeans, cowAmount);
-    const jackSeat = await startJack(context, jackInvitation, fiveBeans, cowAmount);
+    const { aliceSeat } = await startAlice(context, fiveBeans, cowAmount, depositAddress);
+    const aliceResult = await aliceSeat.getOfferResult();
+    t.is(aliceResult, 'invitation sent');
+
+    const jackSeat = await startJack(context, fiveBeans, cowAmount, invitationPurse);
 
     const actualCow = await aliceSeat.getPayout('Cow');
 
@@ -151,7 +184,7 @@ test('basic swap', async t => {
 });
 
 test('Jack Pays', async t => {
-    const { zoe, bundle, cowIssuerKit, beanIssuerKit } = t.context;
+    const { zoe, bundle, cowIssuerKit, beanIssuerKit, nameAdmin } = t.context;
     const feeIssuer = await E(zoe).getFeeIssuer();
     const feeBrand = await E(feeIssuer).getBrand();
     const feeAmount = AmountMath.make(feeBrand, ONE_IST);
@@ -163,12 +196,16 @@ test('Jack Pays', async t => {
         cowIssuerKit.brand,
         makeCopyBag([['Milky White', 1n]]));
 
-    const { instance } = await startContract(zoe, bundle);
+    const { instance } = await startContract(zoe, bundle, nameAdmin);
     const terms = await E(zoe).getTerms(instance);
     const context = { ...t.context, instance, ...terms };
+    const { invitationPurse, depositAddress } = await setupDepositFacet(context);
 
-    const { aliceSeat, jackInvitation } = await startAlice(context, fiveBeans, cowAmount, false);
-    const jackSeat = await startJack(context, jackInvitation, fiveBeans, cowAmount, true);
+    const { aliceSeat } = await startAlice(context, fiveBeans, cowAmount, depositAddress);
+    const aliceResult = await aliceSeat.getOfferResult();
+    t.is(aliceResult, 'invitation sent');
+
+    const jackSeat = await startJack(context, fiveBeans, cowAmount, invitationPurse, true);
 
     const actualCow = await aliceSeat.getPayout('Cow');
     const actualAliceFee = await aliceSeat.getPayout('Refund');
@@ -192,7 +229,7 @@ test('Jack Pays', async t => {
 });
 
 test('Neither Pays', async t => {
-    const { zoe, bundle, cowIssuerKit, beanIssuerKit } = t.context;
+    const { zoe, bundle, cowIssuerKit, beanIssuerKit, nameAdmin } = t.context;
     const feeIssuer = await E(zoe).getFeeIssuer();
     const feeBrand = await E(feeIssuer).getBrand();
     const feeAmount = AmountMath.make(feeBrand, ONE_IST);
@@ -204,13 +241,16 @@ test('Neither Pays', async t => {
         cowIssuerKit.brand,
         makeCopyBag([['Milky White', 1n]]));
 
-    const { instance } = await startContract(zoe, bundle);
+    const { instance } = await startContract(zoe, bundle, nameAdmin);
     const terms = await E(zoe).getTerms(instance);
     const context = { ...t.context, instance, ...terms };
+    const { invitationPurse, depositAddress } = await setupDepositFacet(context);
 
-    const { aliceSeat, jackInvitation } = await startAlice(context, fiveBeans, cowAmount, false);
+    const { aliceSeat } = await startAlice(context, fiveBeans, cowAmount, depositAddress, false);
+    const aliceResult = await aliceSeat.getOfferResult();
+    t.is(aliceResult, 'invitation sent');
 
-    const jackSeat = await startJack(context, jackInvitation, fiveBeans, cowAmount, false);
+    const jackSeat = await startJack(context, fiveBeans, cowAmount, invitationPurse, false);
     t.falsy(await jackSeat.getOfferResult());
 
     const alicePayouts = await aliceSeat.getPayouts();
@@ -233,7 +273,7 @@ test('Neither Pays', async t => {
 });
 
 test('re-add Issuers', async t => {
-    const { zoe, bundle, cowIssuerKit, beanIssuerKit } = t.context;
+    const { zoe, bundle, cowIssuerKit, beanIssuerKit, nameAdmin } = t.context;
 
     const beans = x => AmountMath.make(beanIssuerKit.brand, x);
 
@@ -244,13 +284,17 @@ test('re-add Issuers', async t => {
       cowIssuerKit.brand,
       makeCopyBag([['Bessy', 1n]]));
 
-    const { instance, creatorFacet } = await startContract(zoe, bundle);
+    const { instance, creatorFacet } = await startContract(zoe, bundle, nameAdmin);
     const terms = await E(zoe).getTerms(instance);
     const context = { ...t.context, instance, ...terms };
+    const { invitationPurse, depositAddress } = await setupDepositFacet(context);
 
     const fiveBeans = beans(5n);
-    const { aliceSeat, jackInvitation } = await startAlice(context, fiveBeans, milkyWhiteAmount);
-    const jackSeat = await startJack(context, jackInvitation, fiveBeans, milkyWhiteAmount);
+    const { aliceSeat } = await startAlice(context, fiveBeans, milkyWhiteAmount, depositAddress);
+    const aliceResult = await aliceSeat.getOfferResult();
+    t.is(aliceResult, 'invitation sent');
+
+    const jackSeat = await startJack(context, fiveBeans, milkyWhiteAmount, invitationPurse);
     const actualCow = await aliceSeat.getPayout('Cow');
 
     const actualCowAmount = await cowIssuerKit.issuer.getAmountOf(actualCow);
@@ -260,8 +304,8 @@ test('re-add Issuers', async t => {
     t.deepEqual(actualBeansAmount, fiveBeans);
 
     const fourBeans = beans(4n);
-    const { aliceSeat: alice2ndSeat, jackInvitation: jack2ndInvitation } = await startAlice(context, fourBeans, bessyAmount);
-    const jack2ndSeat = await startJack(context, jack2ndInvitation, fourBeans, bessyAmount);
+    const { aliceSeat: alice2ndSeat } = await startAlice(context, fourBeans, bessyAmount, depositAddress);
+    const jack2ndSeat = await startJack(context, fourBeans, bessyAmount, invitationPurse);
 
     const actual2ndCow = await alice2ndSeat.getPayout('Cow');
     const actual2ndCowAmount = await cowIssuerKit.issuer.getAmountOf(actual2ndCow);
