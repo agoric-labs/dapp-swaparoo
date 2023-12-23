@@ -7,10 +7,9 @@ import { E, Far } from '@endo/far';
 import '@agoric/zoe/exported.js';
 import { atomicRearrange } from '@agoric/zoe/src/contractSupport/atomicTransfer.js';
 import { matches } from '@endo/patterns';
-// XXX copy collectFees.js to avoid @agoric/inter-protocol dependency
-import { makeCollectFeesInvitation } from '@agoric/inter-protocol/src/collectFees.js';
 import '@agoric/zoe/exported.js';
 import '@agoric/zoe/src/contracts/exported.js';
+import { makeCollectFeesInvitation } from './collectFees.js';
 
 import { makeTracer } from './debug.js';
 
