@@ -74,7 +74,10 @@ export const startContract = async permittedPowers => {
   const terms = { feeAmount: oneIST, namesByAddressAdmin };
 
   // agoricNames gets updated each time; the promise space only once XXXXXXX
-  const installation = await E(agoricNames).lookup('installation', contractName);
+  const installation = await E(agoricNames).lookup(
+    'installation',
+    contractName,
+  );
 
   const { instance } = await E(startUpgradable)({
     installation,
@@ -111,7 +114,10 @@ const contractManifest = {
 };
 harden(contractManifest);
 
-export const getManifestForContract = ({ restoreRef }, { [`${contractName}Ref`]: contractRef }) => {
+export const getManifestForContract = (
+  { restoreRef },
+  { [`${contractName}Ref`]: contractRef },
+) => {
   return harden({
     manifest: contractManifest,
     installations: {
