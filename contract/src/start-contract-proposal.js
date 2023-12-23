@@ -68,25 +68,23 @@ export const installContract = async (powers, config) => {
 export const startContract = async permittedPowers => {
   console.error('startContract()...');
   const {
-    consume: {
-      agoricNames,
-      startUpgradable,
-      namesByAddressAdmin: namesByAddressAdminP,
+    consume: { startUpgradable, namesByAddressAdmin: namesByAddressAdminP },
+    brand: {
+      consume: { IST: istBrandP },
     },
-    // brand: {
-    //   // @ts-expect-error dynamic extension to promise space
-    //   produce: { Place: producePlaceBrand },
-    // },
     // issuer: {
     //   // @ts-expect-error dynamic extension to promise space
     //   produce: { Place: producePlaceIssuer },
     // },
+    installation: {
+      consume: { [contractName]: installationP },
+    },
     instance: {
       produce: { [contractName]: produceInstance },
     },
   } = permittedPowers;
 
-  const istBrand = await E(agoricNames).lookup('brand', 'IST');
+  const istBrand = await istBrandP;
   const ist = {
     brand: istBrand,
   };
@@ -95,11 +93,7 @@ export const startContract = async permittedPowers => {
   const namesByAddressAdmin = await namesByAddressAdminP;
   const terms = { feeAmount: oneIST, namesByAddressAdmin };
 
-  // agoricNames gets updated each time; the promise space only once XXXXXXX
-  const installation = await E(agoricNames).lookup(
-    'installation',
-    contractName,
-  );
+  const installation = await installationP;
 
   const { instance } = await E(startUpgradable)({
     installation,
