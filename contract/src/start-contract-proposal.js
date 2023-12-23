@@ -39,6 +39,28 @@ const publishBrandInfo = async (chainStorage, board, brand) => {
 const contractName = 'swaparoo';
 
 /**
+ * Core eval script to install contract
+ *
+ * @param {BootstrapPowers} powers
+ */
+export const installContract = async (powers, config) => {
+  console.log('installContract() ...', contractName);
+  const { bundleID = Fail`missing bundleID` } =
+    config.options?.[contractName] || {};
+  const {
+    consume: { zoe },
+    installation: {
+      produce: { [contractName]: produceInstallation },
+    },
+  } = powers;
+
+  const installation = await E(zoe).installBundleID(bundleID);
+  produceInstallation.reset();
+  produceInstallation.resolve(installation);
+  console.log(contractName, '(re)installed');
+};
+
+/**
  * Core eval script to start contract
  *
  * @param {BootstrapPowers} permittedPowers
