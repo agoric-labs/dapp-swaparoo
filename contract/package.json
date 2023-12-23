@@ -14,7 +14,6 @@
   },
   "dependencies": {
     "@agoric/zoe": "^0.26.3-u12.0",
-    "@agoric/inter-protocol": "^0.16.1",
     "@agoric/ertp": "^0.16.3-u12.0",
     "@endo/far": "^0.2.22",
     "@endo/marshal": "^0.8.9",
