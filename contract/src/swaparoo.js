@@ -78,7 +78,7 @@ export const start = async zcf => {
   const stableIssuer = await E(zcf.getZoeService()).getFeeIssuer();
   const feeBrand = await E(stableIssuer).getBrand();
   const { zcfSeat: feeSeat } = zcf.makeEmptySeatKit();
-  const feeShape = makeNatAmountShape(feeBrand, 1_000_000n);
+  const feeShape = makeNatAmountShape(feeBrand, feeAmount.value);
   const depositFacetFromAddr = fixHub(namesByAddressAdmin);
 
   /** @type {OfferHandler} */
