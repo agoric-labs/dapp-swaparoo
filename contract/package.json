@@ -9,8 +9,9 @@
     "docker:bash": "docker-compose exec agd bash",
     "docker:make": "docker-compose exec agd make -C /workspace/contract",
     "make:help": "make list",
-    "test": "ava --verbose",
-    "build:proposal": "agoric run ./scripts/build-contract-deployer.js"
+    "start": "yarn docker:make clean start-contract print-key",
+    "build": "exit 0",
+    "test": "ava --verbose"
   },
   "dependencies": {
     "@agoric/zoe": "^0.26.3-u12.0",
