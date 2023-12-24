@@ -2,12 +2,10 @@
 /* eslint @typescript-eslint/no-floating-promises: "warn" */
 // @ts-check
 
-import { M } from '@endo/patterns';
+import { M, matches } from '@endo/patterns';
 import { E, Far } from '@endo/far';
 import '@agoric/zoe/exported.js';
 import { atomicRearrange } from '@agoric/zoe/src/contractSupport/atomicTransfer.js';
-import { matches } from '@endo/patterns';
-import '@agoric/zoe/exported.js';
 import '@agoric/zoe/src/contracts/exported.js';
 import { makeCollectFeesInvitation } from './collectFees.js';
 
