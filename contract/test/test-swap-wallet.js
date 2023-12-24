@@ -1,7 +1,7 @@
 // @ts-check
 import { test as anyTest } from '@agoric/zoe/tools/prepare-test-env-ava.js';
 import { createRequire } from 'node:module';
-import { E } from '@endo/far';
+import { E, Far } from '@endo/far';
 import { makeNodeBundleCache } from '@endo/bundle-source/cache.js';
 import { makePromiseSpace, makeNameHubKit } from '@agoric/vats';
 import { makeWellKnownSpaces } from '@agoric/vats/src/core/utils.js';
@@ -87,7 +87,7 @@ const mockBootstrap = async log => {
 
   const powers = { produce, consume, ...spaces };
 
-  return { powers, vatAdminState, vstorageData: data };
+  return { powers, vatAdminState };
 };
 
 test.serial('bootstrap and start contract', async t => {
@@ -114,26 +114,26 @@ test.serial('bootstrap and start contract', async t => {
 });
 
 /**
- * @param {{ zoe: ERef<ZoeService>, wellKnown: any }} context
+ * @param {*} wellKnown
+ * @param {MockWallet} wallet
  * @param {Amount} beansAmount
  * @param {Amount} cowsAmount
  * @param {string} depositAddress
- * @param {{ feePurse: ERef<Purse>, beansPurse: ERef<Purse> }} purses
  * @param {boolean} [alicePays]
  */
 const startAlice = async (
-  { zoe, wellKnown },
+  wellKnown,
+  wallet,
   beansAmount,
   cowsAmount,
   depositAddress,
-  { feePurse, beansPurse },
   alicePays = true,
 ) => {
   const instance = wellKnown.instance[contractName];
-  const publicFacet = E(zoe).getPublicFacet(instance);
-  const terms = await E(zoe).getTerms(instance);
+
+  // Let's presume the terms are in vstorage somewhere... say... boardAux
+  const terms = wellKnown.terms.get(instance);
   const { feeAmount } = terms;
-  console.log('alice found:', { feeAmount });
 
   const proposal = {
     give: { MagicBeans: beansAmount, Fee: feeAmount },
@@ -143,44 +143,38 @@ const startAlice = async (
     },
   };
 
-  const firstInvitation = await E(publicFacet).makeFirstInvitation([
-    wellKnown.issuer.BLD,
-    wellKnown.issuer.IST,
-  ]);
-
-  // TODO: factor out walletDriver. Clients don't handle purses.
-  const beanPayment = await E(beansPurse).withdraw(beansAmount);
-  const feePayment = await E(feePurse).withdraw(feeAmount);
-
-  const seat = await E(zoe).offer(
-    firstInvitation,
-    proposal,
-    {
-      Fee: feePayment,
-      MagicBeans: beanPayment,
+  const offerSpec = {
+    id: 'alice-swap-1',
+    invitationSpec: {
+      source: 'contract',
+      instance,
+      publicInvitationMaker: 'makeFirstInvitation',
+      invitationArgs: [[wellKnown.issuer.BLD, wellKnown.issuer.IST]],
     },
-    { addr: depositAddress },
-  );
-  const offerResult = await E(seat).getOfferResult();
-  return { aliceSeat: seat, offerResult };
+    proposal,
+    offerArgs: { addr: depositAddress },
+  };
+
+  const updates = E(wallet.offers).executeOffer(offerSpec);
+  return updates;
 };
 
 /**
- * @param {{ zoe: ERef<ZoeService>, wellKnown: any }} context
+ * @param {*} wellKnown
+ * @param {MockWallet} wallet
  * @param {Amount} beansAmount
  * @param {Amount} cowsAmount
- * @param {{ feePurse: ERef<Purse>, invitationPurse: ERef<Purse>, cowPurse: ERef<Purse> }} purses
  * @param {boolean} [jackPays]
  */
 const startJack = async (
-  { zoe, wellKnown },
+  wellKnown,
+  wallet,
   beansAmount,
   cowsAmount,
-  { feePurse, invitationPurse, cowPurse },
   jackPays = false,
 ) => {
   const instance = wellKnown.instance[contractName];
-  const terms = await E(zoe).getTerms(instance);
+  const terms = wellKnown.terms.get(instance);
   const { feeAmount } = terms;
 
   const proposal = {
@@ -191,48 +185,176 @@ const startJack = async (
     },
   };
 
-  // TODO: factor out walletDriver. Clients don't handle purses.
-  const cowPayment = await E(cowPurse).withdraw(cowsAmount);
-  const feePayment = await E(feePurse).withdraw(feeAmount);
-  let payments = {
-    Cow: cowPayment,
-    ...(jackPays ? { Refund: feePayment } : {}),
+  const offerSpec = {
+    id: 'jack-123',
+    invitationSpec: {
+      source: 'purse',
+      instance,
+      // description is required???
+    },
+    proposal,
   };
 
-  const invitationAmount = await E(invitationPurse).getCurrentAmount();
-  const jackInvitation = await E(invitationPurse).withdraw(invitationAmount);
-
-  return E(zoe).offer(jackInvitation, proposal, payments);
+  return E(wallet.offers).executeOffer(offerSpec);
 };
 
-let acctSerial = 0;
+const { entries, fromEntries } = Object;
 
-const provisionAcct = async powers => {
-  const DEPOSIT_FACET_KEY = 'depositFacet';
-  const { zoe, namesByAddressAdmin } = powers.consume;
-  const depositAddress = `agoric1-deposit-${acctSerial++}`;
-
-  const { nameAdmin: addressAdmin } = await E(namesByAddressAdmin).provideChild(
-    depositAddress,
-    [DEPOSIT_FACET_KEY],
+/** @type { <T extends Record<string, ERef<any>>>(obj: T) => Promise<{ [K in keyof T]: Awaited<T[K]>}> } */
+const allValues = async obj => {
+  const es = await Promise.all(
+    entries(obj).map(async ([k, v]) => [k, await v]),
   );
+  return fromEntries(es);
+};
 
-  const invitationPurse = await E(
-    E(zoe).getInvitationIssuer(),
-  ).makeEmptyPurse();
-  const depositFacet = await E(invitationPurse).getDepositFacet();
-  await E(addressAdmin).default(DEPOSIT_FACET_KEY, depositFacet);
-  return { invitationPurse, addressAdmin, depositAddress };
+/** @type { <V, U, T extends Record<string, V>>(obj: T, f: (v: V) => U) => Record<string, U>} */
+const mapValues = (obj, f) =>
+  fromEntries(entries(obj).map(([p, v]) => [p, f(v)]));
+
+/**
+ * @param {{
+ *   zoe: ERef<ZoeService>;
+ *   chainStorage: ERef<StorageNode>;
+ *   namesByAddressAdmin: ERef<import('@agoric/vats').NameAdmin>;
+ * }} powers
+ *
+ * @typedef {import('@agoric/smart-wallet').OfferSpec} OfferSpec
+ *
+ * @typedef {Awaited<ReturnType<Awaited<ReturnType<typeof mockWalletFactory>['makeSmartWallet']>>>} MockWallet
+ */
+const mockWalletFactory = (
+  { zoe, namesByAddressAdmin },
+  issuerKeywordRecord,
+) => {
+  const DEPOSIT_FACET_KEY = 'depositFacet';
+
+  const { Fail } = assert;
+
+  //   const walletsNode = E(chainStorage).makeChildNode('wallet');
+
+  // TODO: provideSmartWallet
+  /** @param {string} address */
+  const makeSmartWallet = async address => {
+    const { nameAdmin: addressAdmin } = await E(
+      namesByAddressAdmin,
+    ).provideChild(address, [DEPOSIT_FACET_KEY]);
+
+    const purseByBrand = new Map();
+    await allValues(
+      mapValues(issuerKeywordRecord, async issuer => {
+        const purse = await E(issuer).makeEmptyPurse();
+        const brand = await E(issuer).getBrand();
+        purseByBrand.set(brand, purse);
+      }),
+    );
+    const invitationBrand = await E(E(zoe).getInvitationIssuer()).getBrand();
+    purseByBrand.has(invitationBrand) ||
+      Fail`no invitation issuer / purse / brand`;
+    const invitationPurse = purseByBrand.get(invitationBrand);
+
+    const depositFacet = Far('DepositFacet', {
+      /** @param {Payment} pmt */
+      receive: async pmt => {
+        const pBrand = await E(pmt).getAllegedBrand();
+        if (!purseByBrand.has(pBrand))
+          throw Error(`brand not known/supported: ${pBrand}`);
+        const purse = purseByBrand.get(pBrand);
+        return E(purse).deposit(pmt);
+      },
+    });
+    await E(addressAdmin).default(DEPOSIT_FACET_KEY, depositFacet);
+
+    // const updatesNode = E(walletsNode).makeChildNode(address);
+    // const currentNode = E(updatesNode).makeChildNode('current');
+
+    const getContractInvitation = invitationSpec => {
+      const {
+        instance,
+        publicInvitationMaker,
+        invitationArgs = [],
+      } = invitationSpec;
+      const pf = E(zoe).getPublicFacet(instance);
+      return E(pf)[publicInvitationMaker](...invitationArgs);
+    };
+
+    const getPurseInvitation = async invitationSpec => {
+      //   const { instance, description } = invitationSpec;
+      const invitationAmount = await E(invitationPurse).getCurrentAmount();
+      console.log(
+        '@@TODO: check invitation amount against instance',
+        invitationAmount,
+      );
+      return E(invitationPurse).withdraw(invitationAmount);
+    };
+
+    /** @param {OfferSpec} offerSpec */
+    async function* executeOffer(offerSpec) {
+      const { invitationSpec, proposal, offerArgs } = offerSpec;
+      const { source } = invitationSpec;
+      const invitation = await (source === 'contract'
+        ? getContractInvitation(invitationSpec)
+        : source === 'purse'
+          ? getPurseInvitation(invitationSpec)
+          : Fail`unsupported source: ${source}`);
+      const pmts = await allValues(
+        mapValues(proposal.give, async amt => {
+          const { brand } = amt;
+          if (!purseByBrand.has(brand))
+            throw Error(`brand not known/supported: ${brand}`);
+          const purse = purseByBrand.get(brand);
+          return E(purse).withdraw(amt);
+        }),
+      );
+      const seat = await E(zoe).offer(invitation, proposal, pmts, offerArgs);
+      //   console.log(address, offerSpec.id, 'got seat');
+      yield { updated: 'OfferStatus', status: offerSpec };
+      const result = await E(seat).getOfferResult();
+      //   console.log(address, offerSpec.id, 'got result', result);
+      yield { updated: 'OfferStatus', status: { ...offerSpec, result } };
+      const [payouts, numWantsSatisfied] = await Promise.all([
+        E(seat).getPayouts(),
+        E(seat).numWantsSatisfied(),
+      ]);
+      yield {
+        updated: 'OfferStatus',
+        status: { ...offerSpec, result, numWantsSatisfied },
+      };
+      const amts = await allValues(
+        mapValues(payouts, pmtP =>
+          Promise.resolve(pmtP).then(pmt => depositFacet.receive(pmt)),
+        ),
+      );
+      //   console.log(address, offerSpec.id, 'got payouts', amts);
+      yield {
+        updated: 'OfferStatus',
+        status: { ...offerSpec, result, numWantsSatisfied, payouts: amts },
+      };
+    }
+
+    return { deposit: depositFacet, offers: Far('Offers', { executeOffer }) };
+  };
+
+  return harden({ makeSmartWallet });
 };
 
 test.serial('basic swap', async t => {
   const ONE_IST = 1_000_000n;
-  const DEPOSIT_ADDRESS = 'agoric1DE6O517_ADD4';
+  const addr = {
+    alice: 'agoric1alice',
+    jack: 'agoric1jack',
+  };
 
   const {
     shared: { powers },
     bundleCache,
   } = t.context;
+
+  const { zoe, feeMintAccess, bldIssuerKit } = powers.consume;
+  const instance = await powers.instance.consume[contractName];
+  // TODO: we presume terms are available... perhaps in boardAux
+  const terms = await E(zoe).getTerms(instance);
+
   // A higher fidelity test would get these from vstorage
   const wellKnown = {
     brand: {
@@ -242,10 +364,12 @@ test.serial('basic swap', async t => {
     issuer: {
       IST: await powers.issuer.consume.IST,
       BLD: await powers.issuer.consume.BLD,
+      Invitation: await E(zoe).getInvitationIssuer(),
     },
     instance: {
-      [contractName]: await powers.instance.consume[contractName],
+      [contractName]: instance,
     },
+    terms: new Map([[instance, terms]]),
   };
 
   const beans = x => AmountMath.make(wellKnown.brand.IST, x);
@@ -257,48 +381,64 @@ test.serial('basic swap', async t => {
     10n,
   );
 
-  const { zoe, feeMintAccess, bldIssuerKit } = powers.consume;
-  const terms = await E(zoe).getTerms(wellKnown.instance[contractName]);
-  const { faucet } = makeStableFaucet({ bundleCache, feeMintAccess, zoe });
+  const { mintBrandedPayment } = makeStableFaucet({
+    bundleCache,
+    feeMintAccess,
+    zoe,
+  });
   const bldPurse = E(E.get(bldIssuerKit).issuer).makeEmptyPurse();
   await E(bldPurse).deposit(
     await E(E.get(bldIssuerKit).mint).mintPayment(cowAmount),
   );
-  //   const context = { ...t.context, instance, ...terms };
-  //   const { invitationPurse, depositAddress } = await setupDepositFacet(context);
 
-  const { depositAddress, invitationPurse } = await provisionAcct(powers);
+  const walletFactory = mockWalletFactory(powers.consume, wellKnown.issuer);
+  const wallet = {
+    alice: await walletFactory.makeSmartWallet(addr.alice),
+    jack: await walletFactory.makeSmartWallet(addr.jack),
+  };
 
-  const { aliceSeat } = await startAlice(
-    { zoe, wellKnown },
+  await E(wallet.alice.deposit).receive(await mintBrandedPayment(ONE_IST));
+  await E(wallet.alice.deposit).receive(
+    await mintBrandedPayment(fiveBeans.value),
+  );
+  const aliceUpdates = await startAlice(
+    wellKnown,
+    wallet.alice,
     fiveBeans,
     cowAmount,
-    // Alice knows Jack's address
-    depositAddress,
-    { feePurse: faucet(ONE_IST), beansPurse: faucet(fiveBeans.value) },
+    addr.jack,
   );
 
-  t.log(aliceSeat);
-  const aliceResult = await aliceSeat.getOfferResult();
-  t.is(aliceResult, 'invitation sent');
+  const seated = await aliceUpdates.next();
+  const aliceResult = await aliceUpdates.next();
+  t.is(aliceResult.value.status.result, 'invitation sent');
 
-  const cowPurse = E(wellKnown.issuer.BLD).makeEmptyPurse();
-  await E(cowPurse).deposit(
+  await E(wallet.jack.deposit).receive(await mintBrandedPayment(ONE_IST));
+  await E(wallet.jack.deposit).receive(
     await E(E.get(bldIssuerKit).mint).mintPayment(cowAmount),
   );
-  const jackSeat = await startJack({ zoe, wellKnown }, fiveBeans, cowAmount, {
-    feePurse: faucet(ONE_IST),
-    invitationPurse,
-    cowPurse,
-  });
-
-  const actualCow = await aliceSeat.getPayout('Cow');
-
-  const actualCowAmount = await E(wellKnown.issuer.BLD).getAmountOf(actualCow);
-  t.deepEqual(actualCowAmount, cowAmount);
-  const actualBeans = await jackSeat.getPayout('MagicBeans');
-  const actualBeansAmount = await E(wellKnown.issuer.IST).getAmountOf(
-    actualBeans,
+  const jackUpdates = await startJack(
+    wellKnown,
+    wallet.jack,
+    fiveBeans,
+    cowAmount,
   );
+
+  const getPayouts = async updates => {
+    for await (const update of updates) {
+      if (update.updated === 'OfferStatus' && 'payouts' in update.status) {
+        return update.status.payouts;
+      }
+    }
+  };
+
+  const jackPayouts = await getPayouts(jackUpdates);
+  t.log('jack got', jackPayouts);
+  const actualBeansAmount = jackPayouts['MagicBeans'];
   t.deepEqual(actualBeansAmount, fiveBeans);
+
+  const alicePayouts = await getPayouts(aliceUpdates);
+  t.log('alice got', alicePayouts);
+  const actualCowAmount = alicePayouts['Cow'];
+  t.deepEqual(actualCowAmount, cowAmount);
 });
