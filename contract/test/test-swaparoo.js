@@ -1,27 +1,26 @@
 // @ts-check
 
 /* eslint-disable import/order -- https://github.com/endojs/endo/issues/1235 */
-import {test as anyTest} from './prepare-test-env-ava.js';
-import url from 'url';
+import { test as anyTest } from './prepare-test-env-ava.js';
+import { createRequire } from 'node:module';
+import { E } from '@endo/far';
+import { makeNodeBundleCache } from '@endo/bundle-source/cache.js';
 
 import bundleSource from '@endo/bundle-source';
 
-import {E} from '@endo/far';
-import {makeCopyBag} from '@endo/patterns';
-import {AmountMath, AssetKind, makeIssuerKit} from '@agoric/ertp';
-import {makeZoeKitForTest} from '@agoric/zoe/tools/setup-zoe.js';
-import centralSupplyBundle from '@agoric/vats/bundles/bundle-centralSupply.js';
-import {makeNameHubKit} from '@agoric/vats';
+import { makeCopyBag } from '@endo/patterns';
+import { AmountMath, AssetKind, makeIssuerKit } from '@agoric/ertp';
+import { makeZoeKitForTest } from '@agoric/zoe/tools/setup-zoe.js';
+import { makeNameHubKit } from '@agoric/vats';
 
-import {mintStablePayment} from './mintStable.js';
-
-/** @param {string} ref */
-const asset = ref => url.fileURLToPath(new URL(ref, import.meta.url));
-
-const contractPath = asset(`../src/swaparoo.js`);
+import { makeStableFaucet } from './mintStable.js';
 
 /** @type {import('ava').TestFn<Awaited<ReturnType<makeTestContext>>>} */
 const test = anyTest;
+
+const myRequire = createRequire(import.meta.url);
+const contractPath = myRequire.resolve('../src/swaparoo.js');
+// const contractName = 'swaparoo';
 
 const ONE_IST = 1_000_000n;
 const DEPOSIT_ADDRESS = 'DE6O517_ADD4';
@@ -30,26 +29,13 @@ let depositAddress_incr = 0;
 const DEPOSIT_FACET_KEY = 'depositFacet';
 
 /** Facilities such as zoe are assumed to be available. */
-const makeTestContext = async () => {
+const makeTestContext = async t => {
+    const bundleCache = await makeNodeBundleCache('bundles/', {}, s => import(s));
+
     const bundle = await bundleSource(contractPath);
     const { zoeService: zoe, feeMintAccess } = makeZoeKitForTest();
 
-    const centralSupply = await zoe.install(centralSupplyBundle);
-
-    const feeIssuer = await E(zoe).getFeeIssuer();
-
-    /** @param {bigint} value */
-    const faucet = async value => {
-        const pmt = await mintStablePayment(value, {
-            centralSupply,
-            feeMintAccess,
-            zoe,
-        });
-
-        const purse = await E(feeIssuer).makeEmptyPurse();
-        await purse.deposit(pmt);
-        return purse;
-    };
+    const { faucet } = makeStableFaucet({ bundleCache, feeMintAccess, zoe });
 
     const cowIssuerKit = makeIssuerKit('cows', AssetKind.COPY_BAG);
     const beanIssuerKit = makeIssuerKit('magic beans');
@@ -64,15 +50,15 @@ const setupDepositFacet = async context => {
     const depositAddress = `DEPOSIT_ADDRESS_${depositAddress_incr++}`;
 
     const { nameAdmin: addressAdmin } = await E(
-      nameAdmin,
+        nameAdmin,
     ).provideChild(depositAddress, [DEPOSIT_FACET_KEY]);
 
     const invitationPurse =
-      await E(E(zoe).getInvitationIssuer()).makeEmptyPurse();
+        await E(E(zoe).getInvitationIssuer()).makeEmptyPurse();
     const depositFacet = await E(invitationPurse).getDepositFacet();
     await E(addressAdmin).default(
-      DEPOSIT_FACET_KEY,
-      depositFacet,
+        DEPOSIT_FACET_KEY,
+        depositFacet,
     );
     return { invitationPurse, addressAdmin, depositAddress };
 };
@@ -84,9 +70,9 @@ const startContract = async (zoe, bundle, nameAdmin) => {
     const feeBrand = await E(feeIssuer).getBrand();
     const feeAmount = AmountMath.make(feeBrand, ONE_IST);
     const { instance, creatorFacet } = await zoe.startInstance(
-      installation,
-      { Fee: feeIssuer },
-      { feeAmount, namesByAddressAdmin: nameAdmin },
+        installation,
+        { Fee: feeIssuer },
+        { feeAmount, namesByAddressAdmin: nameAdmin },
     );
     return { instance, creatorFacet };
 };
@@ -106,7 +92,7 @@ const startAlice = async (context, beansAmount, cowsAmount, depositAddress, alic
     };
 
     const firstInvitation = await E(publicFacet).makeFirstInvitation(
-      [cowIssuerKit.issuer, beanIssuerKit.issuer],
+        [cowIssuerKit.issuer, beanIssuerKit.issuer],
     );
 
     const beanPayment = beanIssuerKit.mint.mintPayment(beansAmount);
@@ -116,8 +102,8 @@ const startAlice = async (context, beansAmount, cowsAmount, depositAddress, alic
     const seat = await zoe.offer(firstInvitation, proposal, {
         Fee: feePayment,
         MagicBeans: beanPayment,
-      },
-      { addr: depositAddress },
+    },
+        { addr: depositAddress },
     );
     const offerResult = await E(seat).getOfferResult();
     return { aliceSeat: seat, offerResult };
@@ -151,7 +137,7 @@ const startJack = async (ctx, beansAmount, cowsAmount, invitationPurse, jackPays
 };
 
 
-test.before(async t => (t.context = await makeTestContext()));
+test.before(async t => (t.context = await makeTestContext(t)));
 
 test('basic swap', async t => {
     const { zoe, bundle, cowIssuerKit, beanIssuerKit, nameAdmin } = t.context;
@@ -278,11 +264,11 @@ test('re-add Issuers', async t => {
     const beans = x => AmountMath.make(beanIssuerKit.brand, x);
 
     const milkyWhiteAmount = AmountMath.make(
-      cowIssuerKit.brand,
-      makeCopyBag([['Milky White', 1n]]));
+        cowIssuerKit.brand,
+        makeCopyBag([['Milky White', 1n]]));
     const bessyAmount = AmountMath.make(
-      cowIssuerKit.brand,
-      makeCopyBag([['Bessy', 1n]]));
+        cowIssuerKit.brand,
+        makeCopyBag([['Bessy', 1n]]));
 
     const { instance, creatorFacet } = await startContract(zoe, bundle, nameAdmin);
     const terms = await E(zoe).getTerms(instance);
