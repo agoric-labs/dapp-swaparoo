@@ -84,6 +84,9 @@ install-bundles: bundles/bundle-list
 
 build-proposal: bundles/bundle-list
 
+agoric-install:
+	cd ..; agoric install --sdk
+
 bundles/bundle-list start-contract.js start-contract-permit.json: ./scripts/build-proposal.sh ./src/swaparoo.js
 	./scripts/build-proposal.sh
 
