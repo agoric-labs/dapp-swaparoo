@@ -25,7 +25,7 @@ mint100:
 	make FUNDS=1000$(ATOM) fund-acct
 	cd /usr/src/agoric-sdk && \
 		yarn --silent agops vaults open --wantMinted 100 --giveCollateral 100 >/tmp/want-ist.json && \
-		yarn --silent agops perf satisfaction --executeOffer /tmp/want-ist.json --from user1 --keyring-backend=test
+		yarn --silent agops perf satisfaction --executeOffer /tmp/want-ist.json --from $(ACCT_ADDR) --keyring-backend=test
 
 # https://agoric.explorers.guru/proposal/61
 lower-bundle-cost: scripts/lower-bundle-cost.json ./scripts/voteLatestProposalAndWait.sh
