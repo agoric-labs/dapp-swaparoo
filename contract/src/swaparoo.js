@@ -2,11 +2,12 @@
 /* eslint @typescript-eslint/no-floating-promises: "warn" */
 // @ts-check
 
-import { M, matches } from '@endo/patterns';
+import { M, matches, mustMatch } from '@endo/patterns';
 import { E, Far } from '@endo/far';
 import '@agoric/zoe/exported.js';
 import { atomicRearrange } from '@agoric/zoe/src/contractSupport/atomicTransfer.js';
 import '@agoric/zoe/src/contracts/exported.js';
+import { AmountShape } from '@agoric/ertp/src/typeGuards.js';
 import { makeCollectFeesInvitation } from './collectFees.js';
 
 import { makeTracer } from './debug.js';
@@ -42,6 +43,7 @@ export const swapWithFee = (zcf, firstSeat, secondSeat, feeSeat, feeAmount) => {
 };
 
 let issuerNumber = 1;
+const IssuerShape = M.remotable('Issuer');
 
 /**
  * ref https://github.com/Agoric/agoric-sdk/issues/8408#issuecomment-1741445458
@@ -86,6 +88,7 @@ export const start = async zcf => {
     firstSeat,
     { addr: secondPartyAddress },
   ) => {
+    mustMatch(secondPartyAddress, M.string());
     const { want, give } = firstSeat.getProposal();
 
     const makeSecondProposalShape = want => {
@@ -136,6 +139,7 @@ export const start = async zcf => {
    * @param {Issuer[]} issuers
    */
   const makeFirstInvitation = issuers => {
+    mustMatch(issuers, M.arrayOf(IssuerShape));
     issuers.forEach(i => {
       if (!Object.values(zcf.getTerms().issuers).includes(i)) {
         return zcf.saveIssuer(i, `Issuer${issuerNumber++}`);
