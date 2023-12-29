@@ -133,6 +133,7 @@ export const getManifestForContract = (
   { restoreRef },
   { [`${contractName}Ref`]: contractRef },
 ) => {
+  console.log('manifest ref', contractName, contractRef);
   return harden({
     manifest: contractManifest,
     installations: {
