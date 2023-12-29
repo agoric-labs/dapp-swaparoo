@@ -19,7 +19,9 @@ import { makeCopyBag } from '@agoric/store';
 type Wallet = Awaited<ReturnType<typeof makeAgoricWalletConnection>>;
 
 export const contractName = 'swaparoo';
-const gov1 = 'agoric14t2eagaphnkj33l9hvcrf90t3xffkt0u3xy6uh';
+// const gov1 = 'agoric14t2eagaphnkj33l9hvcrf90t3xffkt0u3xy6uh';
+const swappa = 'agoric13whlmf7akvmg05n3zx37v7r0htyasa4m28j9cu';
+const recipientAddr = swappa;
 
 const watcher = makeAgoricChainStorageWatcher(
   'http://localhost:26657',
@@ -123,7 +125,7 @@ const makeOffer = () => {
       invitationArgs: [[istIssuer, bldIssuer]],
     },
     { give, want },
-    { addr: gov1 },
+    { addr: recipientAddr },
     (update: { status: string; data?: unknown }) => {
       if (update.status === 'error') {
         alert(`Offer error: ${update.data}`);
@@ -150,7 +152,9 @@ function App() {
   const istPurse = purses?.find(p => p.brandPetname === 'IST');
   const bldPurse = purses?.find(p => p.brandPetname === 'BLD');
   const invitationPurse = purses?.find(p => p.brandPetname === 'Invitation');
+  console.log("INVITE PURSE", invitationPurse);
   const invites = invitationPurse ? invitationPurse.currentAmount.value as Array : [];
+  console.log("INVITES", invites);
 
   const buttonLabel = wallet ? 'Make Offer' : 'Connect Wallet';
   const onClick = () => {
@@ -211,9 +215,9 @@ function App() {
                   invites.length ? (
                     <ul style={{ marginTop: 0, textAlign: 'left' }}>
                       {invites.map(
-                        ([name, number]) => (
-                          <li key={name}>
-                            {String(number)} {name}
+                        ({ description, customDetails }, index) => (
+                          <li key={index}>
+                            {description} {JSON.stringify(customDetails, (k, v) => typeof v === 'bigint' ? `${v}` : v)}
                           </li>
                         )
                       )}
