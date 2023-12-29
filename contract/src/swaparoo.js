@@ -2,14 +2,13 @@
 /* eslint @typescript-eslint/no-floating-promises: "warn" */
 // @ts-check
 
-import { M } from '@endo/patterns';
+import { M, matches, mustMatch } from '@endo/patterns';
 import { E, Far } from '@endo/far';
 import '@agoric/zoe/exported.js';
 import { atomicRearrange } from '@agoric/zoe/src/contractSupport/atomicTransfer.js';
-import {matches} from '@endo/patterns';
-import{ makeCollectFeesInvitation } from '@agoric/inter-protocol/src/collectFees.js';
-import '@agoric/zoe/exported.js';
 import '@agoric/zoe/src/contracts/exported.js';
+import { AmountShape } from '@agoric/ertp/src/typeGuards.js';
+import { makeCollectFeesInvitation } from './collectFees.js';
 
 import { makeTracer } from './debug.js';
 
@@ -17,14 +16,15 @@ const { quote: q } = assert;
 
 const trace = makeTracer('Swaparoo', true);
 
-const makeNatAmountShape =
-  (brand, min) => harden({ brand, value: min ? M.gte(min) : M.nat() });
+const makeNatAmountShape = (brand, min) =>
+  harden({ brand, value: min ? M.gte(min) : M.nat() });
 
 export const swapWithFee = (zcf, firstSeat, secondSeat, feeSeat, feeAmount) => {
   try {
     const { Fee: _, ...firstGive } = firstSeat.getProposal().give;
 
-    atomicRearrange(zcf,
+    atomicRearrange(
+      zcf,
       harden([
         [firstSeat, secondSeat, firstGive],
         [secondSeat, firstSeat, secondSeat.getProposal().give],
@@ -43,6 +43,7 @@ export const swapWithFee = (zcf, firstSeat, secondSeat, feeSeat, feeAmount) => {
 };
 
 let issuerNumber = 1;
+const IssuerShape = M.remotable('Issuer');
 
 /**
  * ref https://github.com/Agoric/agoric-sdk/issues/8408#issuecomment-1741445458
@@ -52,20 +53,20 @@ let issuerNumber = 1;
  */
 const fixHub = async namesByAddressAdmin => {
   /** @type {import('@agoric/vats').NameHub} */
-    // @ts-expect-error mock. no has, keys, ...
+  // @ts-expect-error mock. no has, keys, ...
   const hub = Far('Hub work-around', {
-      lookup: async (addr, key, ...rest) => {
-        if (!(addr && key && rest.length === 0)) {
-          throw Error('unsupported');
-        }
-        await E(namesByAddressAdmin).reserve(addr);
-        const addressAdmin = await E(namesByAddressAdmin).lookupAdmin(addr);
-        assert(addressAdmin, 'no admin???');
-        await E(addressAdmin).reserve(key);
-        const addressHub = E(addressAdmin).readonly();
-        return E(addressHub).lookup(key);
-      },
-    });
+    lookup: async (addr, key, ...rest) => {
+      if (!(addr && key && rest.length === 0)) {
+        throw Error('unsupported');
+      }
+      await E(namesByAddressAdmin).reserve(addr);
+      const addressAdmin = await E(namesByAddressAdmin).lookupAdmin(addr);
+      assert(addressAdmin, 'no admin???');
+      await E(addressAdmin).reserve(key);
+      const addressHub = E(addressAdmin).readonly();
+      return E(addressHub).lookup(key);
+    },
+  });
   return hub;
 };
 
@@ -79,11 +80,15 @@ export const start = async zcf => {
   const stableIssuer = await E(zcf.getZoeService()).getFeeIssuer();
   const feeBrand = await E(stableIssuer).getBrand();
   const { zcfSeat: feeSeat } = zcf.makeEmptySeatKit();
-  const feeShape = makeNatAmountShape(feeBrand, 1_000_000n);
+  const feeShape = makeNatAmountShape(feeBrand, feeAmount.value);
   const depositFacetFromAddr = fixHub(namesByAddressAdmin);
 
   /** @type {OfferHandler} */
-  const makeSecondInvitation = async (firstSeat, { addr: secondPartyAddress }) => {
+  const makeSecondInvitation = async (
+    firstSeat,
+    { addr: secondPartyAddress },
+  ) => {
+    mustMatch(secondPartyAddress, M.string());
     const { want, give } = firstSeat.getProposal();
 
     const makeSecondProposalShape = want => {
@@ -100,9 +105,11 @@ export const start = async zcf => {
     const secondSeatOfferHandler = secondSeat => {
       if (!matches(secondSeat.getProposal(), makeSecondProposalShape(want))) {
         // The second invitation was burned; let them both know it didn't work
-        const error = Error(`Proposals didn't match, first want: ${
-          q(want)
-        }, second give: ${q(secondSeat.getProposal().give)}`);
+        const error = Error(
+          `Proposals didn't match, first want: ${q(want)}, second give: ${q(
+            secondSeat.getProposal().give,
+          )}`,
+        );
         secondSeat.fail(error);
         firstSeat.fail(error);
         return;
@@ -132,8 +139,9 @@ export const start = async zcf => {
    * @param {Issuer[]} issuers
    */
   const makeFirstInvitation = issuers => {
+    mustMatch(issuers, M.arrayOf(IssuerShape));
     issuers.forEach(i => {
-      if (!Object.values( zcf.getTerms().issuers).includes(i)) {
+      if (!Object.values(zcf.getTerms().issuers).includes(i)) {
         return zcf.saveIssuer(i, `Issuer${issuerNumber++}`);
       }
     });
@@ -141,9 +149,12 @@ export const start = async zcf => {
       give: M.splitRecord({ Fee: feeShape }),
     });
 
-
-    const firstInvitation =
-      zcf.makeInvitation(makeSecondInvitation, 'create a swap', undefined, proposalShape);
+    const firstInvitation = zcf.makeInvitation(
+      makeSecondInvitation,
+      'create a swap',
+      undefined,
+      proposalShape,
+    );
     return firstInvitation;
   };
 

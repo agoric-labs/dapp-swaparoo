@@ -39,6 +39,28 @@ const publishBrandInfo = async (chainStorage, board, brand) => {
 const contractName = 'swaparoo';
 
 /**
+ * Core eval script to install contract
+ *
+ * @param {BootstrapPowers} powers
+ */
+export const installContract = async (powers, config) => {
+  console.log('installContract() ...', contractName);
+  const { bundleID = Fail`missing bundleID` } =
+    config.options?.[contractName] || {};
+  const {
+    consume: { zoe },
+    installation: {
+      produce: { [contractName]: produceInstallation },
+    },
+  } = powers;
+
+  const installation = await E(zoe).installBundleID(bundleID);
+  produceInstallation.reset();
+  produceInstallation.resolve(installation);
+  console.log(contractName, '(re)installed');
+};
+
+/**
  * Core eval script to start contract
  *
  * @param {BootstrapPowers} permittedPowers
@@ -46,25 +68,23 @@ const contractName = 'swaparoo';
 export const startContract = async permittedPowers => {
   console.error('startContract()...');
   const {
-    consume: {
-      agoricNames,
-      startUpgradable,
-      namesByAddressAdmin: namesByAddressAdminP,
+    consume: { startUpgradable, namesByAddressAdmin: namesByAddressAdminP },
+    brand: {
+      consume: { IST: istBrandP },
     },
-    // brand: {
-    //   // @ts-expect-error dynamic extension to promise space
-    //   produce: { Place: producePlaceBrand },
-    // },
     // issuer: {
     //   // @ts-expect-error dynamic extension to promise space
     //   produce: { Place: producePlaceIssuer },
     // },
+    installation: {
+      consume: { [contractName]: installationP },
+    },
     instance: {
       produce: { [contractName]: produceInstance },
     },
   } = permittedPowers;
 
-  const istBrand = await E(agoricNames).lookup('brand', 'IST');
+  const istBrand = await istBrandP;
   const ist = {
     brand: istBrand,
   };
@@ -73,8 +93,7 @@ export const startContract = async permittedPowers => {
   const namesByAddressAdmin = await namesByAddressAdminP;
   const terms = { feeAmount: oneIST, namesByAddressAdmin };
 
-  // agoricNames gets updated each time; the promise space only once XXXXXXX
-  const installation = await E(agoricNames).lookup('installation', contractName);
+  const installation = await installationP;
 
   const { instance } = await E(startUpgradable)({
     installation,
@@ -96,22 +115,24 @@ export const startContract = async permittedPowers => {
 const contractManifest = {
   [startContract.name]: {
     consume: {
-      agoricNames: true,
-      // board: true, // to publish boardAux info for the contract
-      chainStorage: true, // to publish boardAux info for contract
-      startUpgradable: true, // to start contract and save adminFacet
-      zoe: true, // to get contract terms, including issuer/brand
+      startUpgradable: true,
       namesByAddressAdmin: true, // to convert string addresses to depositFacets
     },
     installation: { consume: { [contractName]: true } },
-    // issuer: { produce: { Place: true } },
-    // brand: { produce: { Place: true } },
     instance: { produce: { [contractName]: true } },
+    brand: {
+      consume: {
+        IST: true, // for use in contract terms
+      },
+    },
   },
 };
 harden(contractManifest);
 
-export const getManifestForContract = ({ restoreRef }, { [`${contractName}Ref`]: contractRef }) => {
+export const getManifestForContract = (
+  { restoreRef },
+  { [`${contractName}Ref`]: contractRef },
+) => {
   return harden({
     manifest: contractManifest,
     installations: {

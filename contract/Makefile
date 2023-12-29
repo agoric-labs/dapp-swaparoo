@@ -21,6 +21,21 @@ SIGN_BROADCAST_OPTS=--keyring-backend=test --chain-id=$(CHAINID) \
 		--gas=auto --gas-adjustment=$(GAS_ADJUSTMENT) \
 		--yes -b block
 
+mint100:
+	make FUNDS=1000$(ATOM) fund-acct
+	cd /usr/src/agoric-sdk && \
+		yarn --silent agops vaults open --wantMinted 100 --giveCollateral 100 >/tmp/want-ist.json && \
+		yarn --silent agops perf satisfaction --executeOffer /tmp/want-ist.json --from $(ACCT_ADDR) --keyring-backend=test
+
+# https://agoric.explorers.guru/proposal/61
+lower-bundle-cost: scripts/lower-bundle-cost.json ./scripts/voteLatestProposalAndWait.sh
+	agd tx gov submit-proposal param-change scripts/lower-bundle-cost.json \
+	$(SIGN_BROADCAST_OPTS) \
+	--from user1
+	./scripts/voteLatestProposalAndWait.sh
+	# agd query swingset params
+
+# Keep mint4k around a while for compatibility
 mint4k:
 	make FUNDS=1000$(ATOM) fund-acct
 	cd /usr/src/agoric-sdk && \
@@ -38,6 +53,10 @@ gov-q:
 	agd query gov proposals --output json | \
 		jq -c '.proposals[] | [.proposal_id,.voting_end_time,.status]'
 
+gov-voting-q:
+	agd query gov proposals --status=voting_period --output json | \
+		jq -c '.proposals[].proposal_id'
+
 PROPOSAL=1
 VOTE_OPTION=yes
 vote:
@@ -48,3 +67,26 @@ vote:
 
 instance-q:
 	agd query vstorage data published.agoricNames.instance -o json
+
+print-key: /root/.agoric/user1.key
+	@echo Import the following mnemonic into Keplr:
+	@cat $<
+	@echo
+	@echo -n 'The resulting address should be: '
+	@agd keys show user1 -a --keyring-backend="test"
+	@echo
+
+start-contract: start-contract.js start-contract-permit.json install-bundles
+	scripts/propose-start-contract.sh
+
+install-bundles: bundles/bundle-list
+	./scripts/install-bundles.sh
+
+build-proposal: bundles/bundle-list
+
+bundles/bundle-list start-contract.js start-contract-permit.json: ./scripts/build-proposal.sh ./src/swaparoo.js
+	./scripts/build-proposal.sh
+
+
+clean:
+	@rm -rf start-game1.js start-game1-permit.json bundles/

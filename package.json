@@ -13,7 +13,14 @@
     "@babel/highlight": "7.22.5"
   },
   "scripts": {
-    "preinstall": "node -e \"process.env.AGORIC_INSTALL && process.exit(0); console.warn('please use: agoric install . For details, see https://agoric.com/documentation/'); process.exit(1)\"",
+    "start:docker": "cd contract && docker compose up -d",
+    "docker:logs": "cd contract; docker compose logs --tail 200 -f",
+    "docker:bash": "cd contract; docker compose exec agd bash",
+    "docker:make": "cd contract; docker compose exec agd make -C /workspace/contract",
+    "make:help": "make -C contract list",
+    "start:contract": "cd contract && yarn start",
+    "print-key": "yarn docker:make print-acct",
+    "start:ui": "cd ui && yarn dev",
     "lint": "yarn workspaces run lint",
     "test": "yarn workspaces run test",
     "build": "yarn workspaces run build"
