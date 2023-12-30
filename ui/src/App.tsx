@@ -32,6 +32,12 @@ interface CopyBag {
   payload: Array<[string, bigint]>;
 }
 
+interface Invitation {
+  handle: unknown;
+  instance: unknown;
+  customDetails: { give: unknown, want: unknown };
+}
+
 interface Purse {
   brand: unknown;
   brandPetname: string;
@@ -145,15 +151,25 @@ function App() {
     setup();
   }, []);
 
-  const { wallet, purses } = useAppStore(({ wallet, purses }) => ({
+  const { wallet, purses, contractInstance } = useAppStore(({ wallet, purses, contractInstance }) => ({
     wallet,
     purses,
+    contractInstance,
   }));
   const istPurse = purses?.find(p => p.brandPetname === 'IST');
   const bldPurse = purses?.find(p => p.brandPetname === 'BLD');
   const invitationPurse = purses?.find(p => p.brandPetname === 'Invitation');
   console.log("INVITE PURSE", invitationPurse);
-  const invites = invitationPurse ? invitationPurse.currentAmount.value as Array : [];
+  const swaps: Invitation[] = [];
+  const invites: Invitation[] = [];
+  if (invitationPurse) {
+    const rawInvites = invitationPurse?.currentAmount?.value as unknown as Array<Invitation> || [];
+    for (const invite of rawInvites) {
+      console.log('iHandle', invite.instance, contractInstance);
+      (invite.instance === contractInstance ? swaps : invites).push(invite);
+    }
+  }
+
   console.log("INVITES", invites);
 
   const buttonLabel = wallet ? 'Make Offer' : 'Connect Wallet';
@@ -210,6 +226,22 @@ function App() {
             )}
             {wallet && invitationPurse && (
               <div>
+                <b>Pending Swaps:  </b>
+                {
+                  swaps.length ? (
+                    <ul style={{ marginTop: 0, textAlign: 'left' }}>
+                      {swaps.map(
+                        ({ description, customDetails }, index) => (
+                          <li key={index}>
+                            <b>{description}</b><br />
+                            {JSON.stringify(customDetails, (k, v) => typeof v === 'bigint' ? `${v}` : v, 2)}
+                          </li>
+                        )
+                      )}
+                    </ul>
+                  ) : (
+                    'None'
+                  )}
                 <b>Invitations:  </b>
                 {
                   invites.length ? (
