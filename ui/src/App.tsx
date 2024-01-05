@@ -33,6 +33,7 @@ interface CopyBag {
 }
 
 interface Invitation {
+  description: string;
   handle: unknown;
   instance: unknown;
   customDetails: { give: unknown, want: unknown };
@@ -54,9 +55,17 @@ interface Purse {
 interface AppState {
   wallet?: Wallet;
   contractInstance?: unknown;
-  brands?: Array<[string, unknown]>;
-  issuers?: Array<[string, unknown]>;
+  brands?: Map<string, unknown>;
+  issuers?: Map<string, unknown>;
   purses?: Array<Purse>;
+}
+
+interface FormState {
+  recipient?: string;
+  giveBrand?: unknown;
+  giveAmount?: Amount;
+  wantBrand?: unknown;
+  wantAmount?: Amount;
 }
 
 const useAppStore = create<AppState>(() => ({}));
@@ -78,7 +87,7 @@ const setup = async () => {
     brands => {
       console.log('Got brands', brands);
       useAppStore.setState({
-        brands,
+        brands: new Map(brands),
       });
     }
   );
@@ -88,11 +97,26 @@ const setup = async () => {
     issuers => {
       console.log('Got issuers', issuers);
       useAppStore.setState({
-        issuers,
+        issuers: new Map(issuers),
       });
     }
   );
 };
+
+const Banner = () => (
+  <div>
+    <a href="https://vitejs.dev" target="_blank">
+      <img src={viteLogo} className="logo" alt="Vite logo" />
+    </a>
+    <a href="https://react.dev" target="_blank">
+      <img src={reactLogo} className="logo react" alt="React logo" />
+    </a>
+    <a href="https://agoric.com/develop" target="_blank">
+      <img src={agoricLogo} className="logo agoric" alt="Agoric logo" />
+    </a>
+    <h1>Vite + React + Agoric</h1>
+  </div>
+);
 
 const connectWallet = async () => {
   await suggestChain('https://local.agoric.net/network-config');
@@ -106,12 +130,23 @@ const connectWallet = async () => {
   }
 };
 
-const makeOffer = () => {
+const ConnectWallet = () => (
+  <div className="card">
+    <button onClick={connectWallet}>Connect Wallet</button>
+  </div>
+);
+
+const useForm = create<FormState>(() => ({
+  recipient: recipientAddr,
+}));
+
+const makeOffer = ({ recipient = undefined }) => {
+  console.log('ADDRESS', recipient);
   const { wallet, contractInstance, brands, issuers } = useAppStore.getState();
-  const istBrand = brands?.find(([name]) => name === 'IST')?.at(1);
-  const istIssuer = issuers?.find(([name]) => name === 'IST')?.at(1);
-  const bldBrand = brands?.find(([name]) => name === 'BLD')?.at(1);
-  const bldIssuer = issuers?.find(([name]) => name === 'BLD')?.at(1);
+  const istBrand = brands?.get('IST');
+  const istIssuer = issuers?.get('IST');
+  const bldBrand = brands?.get('BLD');
+  const bldIssuer = issuers?.get('BLD');
 
   const value = makeCopyBag([
     ['FTX Arena', 2n],
@@ -131,7 +166,7 @@ const makeOffer = () => {
       invitationArgs: [[istIssuer, bldIssuer]],
     },
     { give, want },
-    { addr: recipientAddr },
+    { addr: recipient },
     (update: { status: string; data?: unknown }) => {
       if (update.status === 'error') {
         alert(`Offer error: ${update.data}`);
@@ -146,13 +181,8 @@ const makeOffer = () => {
   );
 };
 
-function App() {
-  useEffect(() => {
-    setup();
-  }, []);
-
-  const { wallet, purses, contractInstance } = useAppStore(({ wallet, purses, contractInstance }) => ({
-    wallet,
+const BuildOffer = wallet => {
+  const { purses, contractInstance } = useAppStore(({ purses, contractInstance }) => ({
     purses,
     contractInstance,
   }));
@@ -171,104 +201,116 @@ function App() {
   }
 
   console.log("INVITES", invites);
-
-  const buttonLabel = wallet ? 'Make Offer' : 'Connect Wallet';
-  const onClick = () => {
-    if (wallet) {
-      makeOffer();
-    } else {
-      connectWallet();
-    }
-  };
+  const recipient = useForm(state => state.recipient);
 
   return (
-    <>
+    <div className="card">
+      <div>{wallet?.address}</div>
+      <h2 style={{ marginTop: 4, marginBottom: 4 }}>Purses</h2>
       <div>
-        <a href="https://vitejs.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-        <a href="https://agoric.com/develop" target="_blank">
-          <img src={agoricLogo} className="logo agoric" alt="Agoric logo" />
-        </a>
-      </div>
-      <h1>Vite + React + Agoric</h1>
-      <div className="card">
-        <div>
-          {wallet && (
-            <>
-              <div>{wallet.address}</div>
-              <h2 style={{ marginTop: 4, marginBottom: 4 }}>Purses</h2>
-            </>
+        <div style={{ textAlign: 'left' }}>
+          {istPurse && (
+            <div>
+              <b>IST: </b>
+              {stringifyAmountValue(
+                istPurse.currentAmount,
+                istPurse.displayInfo.assetKind,
+                istPurse.displayInfo.decimalPlaces
+              )}
+            </div>
           )}
-          <div style={{ textAlign: 'left' }}>
-            {istPurse && (
-              <div>
-                <b>IST: </b>
-                {stringifyAmountValue(
-                  istPurse.currentAmount,
-                  istPurse.displayInfo.assetKind,
-                  istPurse.displayInfo.decimalPlaces
+          {bldPurse && (
+            <div>
+              <b>BLD: </b>
+              {stringifyAmountValue(
+                bldPurse.currentAmount,
+                bldPurse.displayInfo.assetKind,
+                bldPurse.displayInfo.decimalPlaces
+              )}
+            </div>
+          )}
+          {invitationPurse && (
+            <div>
+              <h4>Pending Swaps:  </h4>
+              {
+                swaps.length ? (
+                  <ul style={{ marginTop: 0, textAlign: 'left' }}>
+                    {swaps.map(
+                      ({ description, customDetails }, index) => (
+                        <li key={index}>
+                          <b>{description}</b><br />
+                          {JSON.stringify(customDetails, (k, v) => typeof v === 'bigint' ? `${v}` : v, 2)}
+                        </li>
+                      )
+                    )}
+                  </ul>
+                ) : (
+                  'None'
                 )}
-              </div>
-            )}
-            {bldPurse && (
-              <div>
-                <b>BLD: </b>
-                {stringifyAmountValue(
-                  bldPurse.currentAmount,
-                  bldPurse.displayInfo.assetKind,
-                  bldPurse.displayInfo.decimalPlaces
+              <h4>Invitations:  </h4>
+              {
+                invites.length ? (
+                  <ul style={{ marginTop: 0, textAlign: 'left' }}>
+                    {invites.map(
+                      ({ description, customDetails }, index) => (
+                        <li key={index}>
+                          {description} {JSON.stringify(customDetails, (_, v) => typeof v === 'bigint' ? `${v}` : v)}
+                        </li>
+                      )
+                    )}
+                  </ul>
+                ) : (
+                  'None'
                 )}
-              </div>
-            )}
-            {wallet && invitationPurse && (
-              <div>
-                <b>Pending Swaps:  </b>
-                {
-                  swaps.length ? (
-                    <ul style={{ marginTop: 0, textAlign: 'left' }}>
-                      {swaps.map(
-                        ({ description, customDetails }, index) => (
-                          <li key={index}>
-                            <b>{description}</b><br />
-                            {JSON.stringify(customDetails, (k, v) => typeof v === 'bigint' ? `${v}` : v, 2)}
-                          </li>
-                        )
-                      )}
-                    </ul>
-                  ) : (
-                    'None'
-                  )}
-                <b>Invitations:  </b>
-                {
-                  invites.length ? (
-                    <ul style={{ marginTop: 0, textAlign: 'left' }}>
-                      {invites.map(
-                        ({ description, customDetails }, index) => (
-                          <li key={index}>
-                            {description} {JSON.stringify(customDetails, (k, v) => typeof v === 'bigint' ? `${v}` : v)}
-                          </li>
-                        )
-                      )}
-                    </ul>
-                  ) : (
-                    'None'
-                  )}
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
-        <button onClick={onClick}>{buttonLabel}</button>
+      </div>
+      <div>
+        <label className="address" >Address:
+          <input
+            type="text"
+            value={recipient}
+            onChange={(e) => useForm.setState({ recipient: e.target.value })}
+            style={{ width: "30em" }}
+          />
+        </label>
+        <br />
+        {/* // select give asset
+        // fill give amount (with max button?)
+        // or drop down to select the notifier
+        // select want asset
+        // fill give amount
+        // or text field to past a description */}
+        <button onClick={() => makeOffer(useForm.getState())}>Make Offer</button>
+      </div>
+    </div>
+  );
+};
+
+const App = () => {
+  useEffect(() => {
+    setup();
+  }, []);
+
+  const wallet = useAppStore(state => state.wallet);
+
+  return (
+    <div>
+      <Banner wallet={wallet} />
+      {wallet ? (
+        <BuildOffer />
+      ) :
+        <ConnectWallet />
+      }
+      <div>
         <p>
           Edit <code>src/App.tsx</code> and save to test HMR
         </p>
       </div>
       <p className="read-the-docs">Click on the logos to learn more</p>
-    </>
+    </div>
   );
-}
+};
 
 export default App;
