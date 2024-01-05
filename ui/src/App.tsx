@@ -60,13 +60,20 @@ interface AppState {
   purses?: Array<Purse>;
 }
 
+interface Amount {
+  brandName: string;
+  value: bigint;
+}
+
 interface FormState {
   recipient?: string;
-  giveBrand?: unknown;
-  giveAmount?: Amount;
-  wantBrand?: unknown;
-  wantAmount?: Amount;
+  give?: object;
+  want?: object;
 }
+
+const stringify = (arg) => {
+  return JSON.stringify(arg, (_k, v) => typeof v === 'bigint' ? `${v}` : v, 2);
+};
 
 const useAppStore = create<AppState>(() => ({}));
 
@@ -138,24 +145,66 @@ const ConnectWallet = () => (
 
 const useForm = create<FormState>(() => ({
   recipient: recipientAddr,
+  give: undefined,
+  want: undefined,
 }));
 
-const makeOffer = ({ recipient = undefined }) => {
+const setFirstOffer = ({ recipient = undefined }) => {
   console.log('ADDRESS', recipient);
-  const { wallet, contractInstance, brands, issuers } = useAppStore.getState();
+  const { brands } = useAppStore.getState();
+
   const istBrand = brands?.get('IST');
-  const istIssuer = issuers?.get('IST');
   const bldBrand = brands?.get('BLD');
-  const bldIssuer = issuers?.get('BLD');
 
-  const value = makeCopyBag([
-    ['FTX Arena', 2n],
-    ['Crypto.com Arena', 1n],
-  ]);
+  useForm.setState({
+    recipient,
+    give: { Price: { brand: istBrand, value: 15_000_000n }, Fee: { brand: istBrand, value: 1_000_000n } },
+    want: { Value: { brand: bldBrand, value: 1_000_000n } },
+  });
+};
 
-  // const give = { Price: { brand: istBrand, value: 15_000_000n } };
-  const give = { Price: { brand: istBrand, value: 15_000_000n }, Fee: { brand: istBrand, value: 1_000_000n } };
-  const want = { Value: { brand: bldBrand, value: 1_000_000n } };
+const setMatchOffer = (invite) => {
+  const { give, want } = invite.customDetails;
+  console.log('MATCH', give, want);
+  // what if there isn't a Fee?
+  const { Fee: _ignore, ...withoutFee } = give;
+  useForm.setState({
+    recipient: undefined,
+    give: want,
+    want: withoutFee,
+  });
+};
+
+
+const makeSecondOffer = () => {
+  const { wallet, contractInstance, } = useAppStore.getState();
+  const { give, want } = useForm.getState();
+  wallet?.makeOffer(
+    {
+      source: 'purse',
+      instance: contractInstance,
+      description: 'matchOffer'
+    },
+    { give, want },
+    undefined,
+    (update: { status: string; data?: unknown }) => {
+      if (update.status === 'error') {
+        alert(`Match offer error: ${update.data}`);
+      }
+      if (update.status === 'accepted') {
+        alert('Match offer accepted');
+      }
+      if (update.status === 'refunded') {
+        alert('Match offer rejected');
+      }
+    }
+  );
+};
+
+const makeOffer = () => {
+  const { wallet, contractInstance, } = useAppStore.getState();
+  const { recipient, give, want } = useForm.getState();
+  console.log('ADDRESS', recipient);
 
   wallet?.makeOffer(
     {
@@ -163,7 +212,7 @@ const makeOffer = ({ recipient = undefined }) => {
       instance: contractInstance,
       publicInvitationMaker: 'makeFirstInvitation',
       // HACK setup a trade
-      invitationArgs: [[istIssuer, bldIssuer]],
+      invitationArgs: [[]],
     },
     { give, want },
     { addr: recipient },
@@ -201,7 +250,7 @@ const BuildOffer = wallet => {
   }
 
   console.log("INVITES", invites);
-  const recipient = useForm(state => state.recipient);
+  const { recipient, give, want } = useForm();
 
   return (
     <div className="card">
@@ -239,7 +288,7 @@ const BuildOffer = wallet => {
                       ({ description, customDetails }, index) => (
                         <li key={index}>
                           <b>{description}</b><br />
-                          {JSON.stringify(customDetails, (k, v) => typeof v === 'bigint' ? `${v}` : v, 2)}
+                          {stringify(customDetails)}
                         </li>
                       )
                     )}
@@ -254,7 +303,7 @@ const BuildOffer = wallet => {
                     {invites.map(
                       ({ description, customDetails }, index) => (
                         <li key={index}>
-                          {description} {JSON.stringify(customDetails, (_, v) => typeof v === 'bigint' ? `${v}` : v)}
+                          {description} {stringify(customDetails)}
                         </li>
                       )
                     )}
@@ -276,13 +325,33 @@ const BuildOffer = wallet => {
           />
         </label>
         <br />
+        <label className="give" >GIVE
+          <input
+            type="text"
+            value={stringify(give)}
+            style={{ width: "30em" }}
+          />
+        </label>
+        <br />
+        <label className="want" >WANT
+          <input
+            type="text"
+            value={stringify(want)}
+            style={{ width: "30em" }}
+          />
+        </label>
+        <br />
         {/* // select give asset
         // fill give amount (with max button?)
         // or drop down to select the notifier
         // select want asset
         // fill give amount
         // or text field to past a description */}
+        <button onClick={() => setFirstOffer(useForm.getState())}>First Offer</button>
         <button onClick={() => makeOffer(useForm.getState())}>Make Offer</button>
+        <br />
+        <button onClick={() => setMatchOffer(swaps[0])}>Match First</button>
+        <button onClick={() => makeSecondOffer(useForm.getState())}>Make Offer</button>
       </div>
     </div>
   );
