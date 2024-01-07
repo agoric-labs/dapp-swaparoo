@@ -318,6 +318,7 @@ const BuildOffer = wallet => {
       <div style={{ textAlign: 'left' }}>
         <h4  >GIVE </h4>
         <p>
+          {stringify(give) || 'Not yet provided'}
         </p>
         <h4 className="want" >WANT </h4>
         <p>
