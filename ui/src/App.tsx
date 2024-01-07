@@ -14,7 +14,6 @@ import {
 } from '@agoric/web-components';
 import { subscribeLatest } from '@agoric/notifier';
 import { stringifyAmountValue } from '@agoric/ui-components';
-import { makeCopyBag } from '@agoric/store';
 
 type Wallet = Awaited<ReturnType<typeof makeAgoricWalletConnection>>;
 
@@ -36,7 +35,7 @@ interface Invitation {
   description: string;
   handle: unknown;
   instance: unknown;
-  customDetails: { give: unknown, want: unknown };
+  customDetails: { give: object, want: object };
 }
 
 interface Purse {
@@ -163,11 +162,12 @@ const setFirstOffer = ({ recipient = undefined }) => {
   });
 };
 
-const setMatchOffer = (invite) => {
+const setMatchOffer = (invite: Invitation) => {
   const { give, want } = invite.customDetails;
   console.log('MATCH', give, want);
   // what if there isn't a Fee?
-  const { Fee: _ignore, ...withoutFee } = give;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { Fee, ...withoutFee } = give;
   useForm.setState({
     recipient: undefined,
     give: want,
@@ -315,7 +315,15 @@ const BuildOffer = wallet => {
           )}
         </div>
       </div>
-      <div>
+      <div style={{ textAlign: 'left' }}>
+        <h4  >GIVE </h4>
+        <p>
+        </p>
+        <h4 className="want" >WANT </h4>
+        <p>
+          {stringify(want) || 'Not yet provided'}
+        </p>
+        <br />
         <label className="address" >Address:
           <input
             type="text"
@@ -324,22 +332,7 @@ const BuildOffer = wallet => {
             style={{ width: "30em" }}
           />
         </label>
-        <br />
-        <label className="give" >GIVE
-          <input
-            type="text"
-            value={stringify(give)}
-            style={{ width: "30em" }}
-          />
-        </label>
-        <br />
-        <label className="want" >WANT
-          <input
-            type="text"
-            value={stringify(want)}
-            style={{ width: "30em" }}
-          />
-        </label>
+
         <br />
         {/* // select give asset
         // fill give amount (with max button?)
@@ -350,10 +343,10 @@ const BuildOffer = wallet => {
         <button onClick={() => setFirstOffer(useForm.getState())}>First Offer</button>
         <button onClick={() => makeOffer(useForm.getState())}>Make Offer</button>
         <br />
-        <button onClick={() => setMatchOffer(swaps[0])}>Match First</button>
-        <button onClick={() => makeSecondOffer(useForm.getState())}>Make Offer</button>
+        <button onClick={() => setMatchOffer(swaps[0])} disabled={!swaps.length}>Match First</button>
+        <button onClick={() => makeSecondOffer(useForm.getState())} disabled={!swaps.length}>Make Second Offer</button>
       </div>
-    </div>
+    </div >
   );
 };
 
@@ -366,7 +359,7 @@ const App = () => {
 
   return (
     <div>
-      <Banner wallet={wallet} />
+      <Banner />
       {wallet ? (
         <BuildOffer />
       ) :
